@@ -13,7 +13,7 @@ from pathlib import Path
 from statistics import mean, median
 
 import numpy as np
-from open_spiel.python.egt import alpharank
+from src.pyspiel import alpharank
 from poke_env import cross_evaluate
 from poke_env.player import MaxBasePowerPlayer, RandomPlayer, SimpleHeuristicsPlayer
 from poke_env.ps_client import AccountConfiguration, ServerConfiguration
