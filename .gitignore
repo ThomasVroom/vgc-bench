@@ -10,3 +10,5 @@ battle_logs/
 results*/
 trajs/
 debug*.log
+
+*.bat

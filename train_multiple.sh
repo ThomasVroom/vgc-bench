@@ -1,10 +1,9 @@
 #!/bin/bash
 
-run_ids=(1)
-team_counts=(64)
-ports=(7200)
-devices=("cuda:0")
-reg="F"
+run_ids=(1 1 1 1)
+team_counts=(1 4 16 64)
+ports=(7200 7201 7202 7203)
+devices=("cuda:0" "cuda:1" "cuda:2" "cuda:3")
 
 start_showdown() {
     local port=$1
@@ -28,6 +27,7 @@ train() {
     echo "Starting training process $i..."
     python -m vgc_bench.train \
         --run_id $run_id \
+        --reg G \
         --num_teams $num_teams \
         --num_envs 24 \
         --num_eval_workers 24 \
@@ -35,7 +35,6 @@ train() {
         --device $device \
         --behavior_clone \
         --self_play \
-        --reg $reg \
         > "debug$port.log" 2>&1
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
