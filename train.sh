@@ -10,7 +10,7 @@ start_showdown() {
     local port=$1
     (
         cd pokemon-showdown
-        node pokemon-showdown start $port --no-security > /dev/null 2>&1 &
+        $HOME/node-v20.11.1-linux-x64/bin/node pokemon-showdown start $port --no-security > /dev/null 2>&1 &
         echo $!
     )
 }
@@ -26,7 +26,7 @@ train() {
     showdown_pid=$(start_showdown $port)
     sleep 5
     echo "Starting training process $i..."
-    python -m vgc_bench.train \
+    $HOME/python3.13/bin/python3.13 -m vgc_bench.train \
         --run_id $run_id \
         --num_teams $num_teams \
         --num_envs 24 \

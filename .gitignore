@@ -12,3 +12,4 @@ trajs/
 debug*.log
 
 *.bat
+credentials
