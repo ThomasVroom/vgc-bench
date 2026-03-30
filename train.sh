@@ -5,6 +5,7 @@ team_counts=(64)
 ports=(7200)
 devices=("cuda:0")
 reg="F"
+total_steps=$((51 * 98304))  # 98304 is the number of steps per save during training
 
 start_showdown() {
     local port=$1
@@ -29,13 +30,14 @@ train() {
     python3.13 -m vgc_bench.train \
         --run_id $run_id \
         --num_teams $num_teams \
-        --num_envs 24 \
-        --num_eval_workers 24 \
+        --num_envs 16 \
+        --num_eval_workers 16 \
         --port $port \
         --device $device \
         --behavior_clone \
         --self_play \
         --reg $reg \
+        --total_steps "$total_steps" \
         > "debug$port.log" 2>&1
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
