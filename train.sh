@@ -37,7 +37,7 @@ train() {
         --behavior_clone \
         --self_play \
         --reg $reg \
-        --total_steps "$total_steps" \
+        --total_timesteps $total_steps \
         > "debug$port.log" 2>&1
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
