@@ -13,7 +13,7 @@ from pathlib import Path
 from statistics import mean, median
 
 import numpy as np
-from src.pyspiel import alpharank
+from torch import device
 from poke_env import cross_evaluate
 from poke_env.player import MaxBasePowerPlayer, RandomPlayer, SimpleHeuristicsPlayer
 from poke_env.ps_client import AccountConfiguration, ServerConfiguration
@@ -28,6 +28,7 @@ from vgc_bench.src.teams import (
     get_team_paths,
 )
 from vgc_bench.src.utils import format_map
+from vgc_bench.src.pyspiel import alpharank
 
 
 def cross_eval_all_agents(
@@ -399,14 +400,72 @@ def print_team_statistics(reg: str, num_teams: int):
         )
 
 
+def cross_eval_regs_baseline(
+    checkpoints: list[int],
+    port: int,
+    dev: str,
+    num_battles: int
+):
+    """
+    Cross-evaluate BC-SP agents trained on different regulations.
+
+    Tests how much agents trained on a certain regulation can generalize to different regulations without further training.
+    Uses unseen teams for all match-ups.
+
+    Args:
+        checkpoints: List of checkpoints for each reg.
+        port: Port for the Pokemon Showdown server.
+        dev: CUDA device for model inference.
+        num_battles: Total number of battles across all runs.
+    """
+    regs = ['f','g','h','i']
+    for target_reg in regs:
+        agents = []
+        for i, source_reg in enumerate(regs):
+            agent = BatchPolicyPlayer(
+                account_configuration=AccountConfiguration.generate(
+                    f"BC-SP/reg{source_reg}-64-teams"
+                ),
+                server_configuration=ServerConfiguration(
+                    f"ws://localhost:{port}/showdown/websocket",
+                    "https://play.pokemonshowdown.com/action.php?",
+                ),
+                battle_format=format_map[target_reg],
+                log_level=25,
+                max_concurrent_battles=10,
+                accept_open_team_sheet=True,
+                open_timeout=None,
+                team=RandomTeamBuilder(
+                    1,
+                    64,
+                    target_reg,
+                    take_from_end=True, # use out-of-dist teams
+                )
+            )
+            path = f"results/saves-bc-sp/reg{source_reg}-64-teams/seed1/{checkpoints[i]}"
+            agent.set_policy(path, device(dev))
+            agents += [agent]
+        print(f"Starting cross-eval on reg{target_reg}...")
+        results = asyncio.run(cross_evaluate(agents, num_battles))
+        payoff_matrix = np.array(
+            [
+                [r if r is not None else np.nan for r in result.values()]
+                for result in results.values()
+            ]
+        )
+        print(f"Cross evaluation results on reg{target_reg}:")
+        print(payoff_matrix)
+
+# -----------------------------------------------------------------
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a Pokémon AI model")
-    parser.add_argument(
-        "--reg", type=str, required=True, help="VGC regulation to eval on, i.e. G"
-    )
-    parser.add_argument(
-        "--num_teams", type=int, required=True, help="Number of teams to eval with"
-    )
+    # parser.add_argument(
+    #     "--reg", type=str, required=True, help="VGC regulation to eval on, i.e. G"
+    # )
+    # parser.add_argument(
+    #     "--num_teams", type=int, required=True, help="Number of teams to eval with"
+    # )
     parser.add_argument(
         "--port", type=int, default=8000, help="Port to run showdown server on"
     )
@@ -414,23 +473,24 @@ if __name__ == "__main__":
         "--device",
         type=str,
         default="cuda:0",
-        choices=["cuda:0", "cuda:1", "cuda:2", "cuda:3"],
         help="CUDA device to use for eval",
     )
     args = parser.parse_args()
-    reg = args.reg.lower()
-    print_team_statistics(reg, args.num_teams)
-    cross_eval_all_agents(reg, args.num_teams, args.port, args.device, 1000, 100)
-    team_counts = [1, 4, 16, 64]
-    methods = [
-        ("bc-sp", [4915200, 1474560, 4816896, 1179648, 786432]),
-        ("bc-sp", [589824, 3047424, 4128768, 983040, 3538944]),
-        ("bc-do", [3833856, 1671168, 5013504, 2654208, 4030464]),
-        ("bc-sp", [1769472, 2064384, 4227072, 983040, 5013504]),
-    ]
+    # reg = args.reg.lower()
+    # print_team_statistics(reg, args.num_teams)
+    # cross_eval_all_agents(reg, args.num_teams, args.port, args.device, 1000, 100)
+    # team_counts = [1, 4, 16, 64]
+    # methods = [
+    #     ("bc-sp", [4915200, 1474560, 4816896, 1179648, 786432]),
+    #     ("bc-sp", [589824, 3047424, 4128768, 983040, 3538944]),
+    #     ("bc-do", [3833856, 1671168, 5013504, 2654208, 4030464]),
+    #     ("bc-sp", [1769472, 2064384, 4227072, 983040, 5013504]),
+    # ]
     # cross_eval_over_team_sizes(
     #     team_counts, methods, args.port, args.device, 1000, True
     # )
     # cross_eval_over_team_sizes(
     #     team_counts, methods, args.port, args.device, 1000, False
     # )
+    checkpoints = [5013504, 5013504, 5013504, 5013504]
+    cross_eval_regs_baseline(checkpoints, args.port, args.device, 1000)

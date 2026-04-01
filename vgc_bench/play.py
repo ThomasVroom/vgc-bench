@@ -9,7 +9,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from poke_env import AccountConfiguration, ShowdownServerConfiguration
+from poke_env import AccountConfiguration, LocalhostServerConfiguration
 from torch import device
 
 from vgc_bench.src.policy import MaskedActorCriticPolicy
@@ -62,7 +62,7 @@ async def play(
         battle_format=battle_format,
         log_level=40,
         max_concurrent_battles=10,
-        server_configuration=ShowdownServerConfiguration,
+        server_configuration=LocalhostServerConfiguration,
         accept_open_team_sheet=True,
         start_timer_on_battle_start=play_on_ladder,
         team=RandomTeamBuilder(run_id, num_teams, reg, team1=team1, team2=team2),
