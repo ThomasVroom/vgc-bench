@@ -454,7 +454,7 @@ def cross_eval_regs_baseline(
             ]
         )
         print(f"Cross evaluation results on reg{target_reg}:")
-        print(payoff_matrix)
+        print(payoff_matrix) # results are relative to row player!
 
 # -----------------------------------------------------------------
 
@@ -492,5 +492,5 @@ if __name__ == "__main__":
     # cross_eval_over_team_sizes(
     #     team_counts, methods, args.port, args.device, 1000, False
     # )
-    checkpoints = [5013504, 5013504, 5013504, 5013504]
+    checkpoints = [5013504, 5013504, 4423680, 5013504]
     cross_eval_regs_baseline(checkpoints, args.port, args.device, 1000)

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-team_counts=(1 4 16 64)
-ports=(8000 8001 8002 8003)
-devices=("cuda:0" "cuda:1" "cuda:2" "cuda:3")
+run_ids=(1)
+ports=(7200)
+devices=("cuda:0")
 
 start_showdown() {
     local port=$1
@@ -13,34 +13,32 @@ start_showdown() {
     )
 }
 
-start_eval() {
+eval() {
     local i=$1
-    local num_teams=${team_counts[$i]}
-    local team_indices=${team_lists[$i]}
-    local port=${ports[$i]}
-    local device=${devices[$i]}
+    local run_id="${run_ids[$i]}"
+    local port="${ports[$i]}"
+    local device="${devices[$i]}"
 
-    echo "Starting Showdown server for evaluation process..."
+    echo "Starting Showdown server for eval process $i..."
     showdown_pid=$(start_showdown $port)
     sleep 5
-    echo "Starting evaluation..."
-    python -m vgc_bench.eval \
-        --reg G \
-        --num_teams $num_teams \
+    echo "Starting eval process $i..."
+    python3.13 -m vgc_bench.eval \
         --port $port \
         --device $device \
         > "debug$port.log" 2>&1
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        echo "Evaluation process $i died with exit status $exit_status"
+        echo "Eval process $i died with exit status $exit_status"
     else
-        echo "Evaluation process $i finished!"
+        echo "Eval process $i finished!"
     fi
     kill $showdown_pid
 }
 
-for i in "${!team_counts[@]}"; do
-    start_eval $i &
+trap "echo 'Stopping...'; kill 0" SIGINT
+for i in "${!run_ids[@]}"; do
+    eval $i &
     sleep 30
 done
 wait
