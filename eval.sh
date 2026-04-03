@@ -1,44 +1,39 @@
 #!/bin/bash
 
-run_ids=(1)
-ports=(7200)
-devices=("cuda:0")
+PORT=7200
+DEVICE="cuda:0"
+LOGFILE="debug${PORT}.log"
 
-start_showdown() {
-    local port=$1
-    (
-        cd pokemon-showdown
-        node pokemon-showdown start $port --no-security > /dev/null 2>&1 &
-        echo $!
-    )
+echo "Starting Pokémon Showdown on port $PORT..."
+
+# Start Showdown in background
+cd pokemon-showdown
+node pokemon-showdown start $PORT --no-security > /dev/null 2>&1 &
+SHOWDOWN_PID=$!
+cd ..
+
+# Ensure Showdown is killed when script exits (success or failure)
+cleanup() {
+    echo "Stopping Pokémon Showdown (PID $SHOWDOWN_PID)..."
+    kill $SHOWDOWN_PID 2>/dev/null
 }
+trap cleanup EXIT
 
-eval() {
-    local i=$1
-    local run_id="${run_ids[$i]}"
-    local port="${ports[$i]}"
-    local device="${devices[$i]}"
+# Give server time to start
+sleep 10
 
-    echo "Starting Showdown server for eval process $i..."
-    showdown_pid=$(start_showdown $port)
-    sleep 5
-    echo "Starting eval process $i..."
-    python3.13 -m vgc_bench.eval \
-        --port $port \
-        --device $device \
-        > "debug$port.log" 2>&1
-    exit_status=$?
-    if [ $exit_status -ne 0 ]; then
-        echo "Eval process $i died with exit status $exit_status"
-    else
-        echo "Eval process $i finished!"
-    fi
-    kill $showdown_pid
-}
+echo "Running evaluation..."
 
-trap "echo 'Stopping...'; kill 0" SIGINT
-for i in "${!run_ids[@]}"; do
-    eval $i &
-    sleep 30
-done
-wait
+# Run python module and save output
+python3.13 -m vgc_bench.eval \
+    --port $PORT \
+    --device $DEVICE \
+    > "$LOGFILE" 2>&1
+
+EXIT_STATUS=$?
+
+if [ $EXIT_STATUS -ne 0 ]; then
+    echo "Eval failed with exit status $EXIT_STATUS"
+else
+    echo "Eval finished successfully"
+fi

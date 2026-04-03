@@ -442,7 +442,8 @@ def cross_eval_regs_baseline(
                     take_from_end=True, # use out-of-dist teams
                 )
             )
-            path = f"results/saves-bc-sp/reg{source_reg}-64-teams/seed1/{checkpoints[i]}"
+            path = f"results/saves-bc-sp/reg{source_reg}-64-teams/seed1/{checkpoints[i]}.zip"
+            print("Loading policy from:", path)
             agent.set_policy(path, device(dev))
             agents += [agent]
         print(f"Starting cross-eval on reg{target_reg}...")
@@ -493,4 +494,5 @@ if __name__ == "__main__":
     #     team_counts, methods, args.port, args.device, 1000, False
     # )
     checkpoints = [5013504, 5013504, 4423680, 5013504]
+    print("Starting cross eval with args:", checkpoints, args.port, args.device)
     cross_eval_regs_baseline(checkpoints, args.port, args.device, 1000)
