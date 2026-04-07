@@ -24,6 +24,8 @@ from vgc_bench.src.llm import LLMPlayer
 from vgc_bench.src.policy_player import BatchPolicyPlayer
 from vgc_bench.src.teams import (
     RandomTeamBuilder,
+    NonRepeatingTeamBuilder,
+    StationaryTeamBuilder,
     calc_team_similarity_score,
     get_team_paths,
 )
@@ -421,100 +423,100 @@ def print_team_statistics(reg: str, num_teams: int):
             f"max = {max(sim_scores)}",
         )
 
-
 def cross_eval_regs_baseline(
+    regs: list[str],
     checkpoints: list[int],
     port: int,
     dev: str,
-    num_battles: int
+    num_teams: int,
+    num_battles: int,
+    out_of_dist: bool,
 ):
     """
     Cross-evaluate BC-SP agents trained on different regulations.
 
     Tests how much agents trained on a certain regulation can generalize to different regulations without further training.
-    Uses unseen teams for all match-ups.
 
     Args:
+        regs: List of regulations.
         checkpoints: List of checkpoints for each reg.
         port: Port for the Pokemon Showdown server.
         dev: CUDA device for model inference.
-        num_battles: Total number of battles across all runs.
+        num_teams: Number of different teams to evaluate with (all mirror matches).
+        num_battles: Number of times to repeat each matchup.
+        out_of_dist: If True, uses teams not seen by the agents during training.
     """
-    regs = ['f','g','h','i']
     for target_reg in regs:
-        agents = []
-        for i, source_reg in enumerate(regs):
-            agent = BatchPolicyPlayer(
-                account_configuration=AccountConfiguration.generate(
-                    f"BC-SP/reg{source_reg}-64-teams"
-                ),
-                server_configuration=ServerConfiguration(
-                    f"ws://localhost:{port}/showdown/websocket",
-                    "https://play.pokemonshowdown.com/action.php?",
-                ),
-                battle_format=format_map[target_reg],
-                log_level=25,
-                max_concurrent_battles=10,
-                accept_open_team_sheet=True,
-                open_timeout=None,
-                team=RandomTeamBuilder(
-                    1,
-                    64,
-                    target_reg,
-                    take_from_end=True, # True = use out-of-dist teams
-                )
-            )
-            path = f"results/saves-bc-sp/reg{source_reg}-64-teams/seed1/{checkpoints[i]}.zip"
-            print("Loading policy from:", path)
-            agent.set_policy(path, device(dev))
-            agents += [agent]
-        print(f"Starting cross-eval on reg{target_reg}...")
-        results = asyncio.run(cross_evaluate(agents, num_battles))
-        payoff_matrix = np.array(
-            [
-                [r if r is not None else np.nan for r in result.values()]
-                for result in results.values()
-            ]
+        team_selector = NonRepeatingTeamBuilder(
+            1,
+            64,
+            target_reg,
+            take_from_end=out_of_dist,
         )
-        print(f"Cross evaluation results on reg{target_reg}:")
-        print(payoff_matrix) # results are relative to row player!
+        avg_payoff_matrix = np.zeros((len(regs), len(regs)))
+        for run in range(num_teams):
+            team = team_selector.yield_team()
+            agents = []
+            for i, source_reg in enumerate(regs):
+                agent = BatchPolicyPlayer(
+                    account_configuration=AccountConfiguration.generate(
+                        f"BC-SP/reg_{source_reg}/{run}"
+                    ),
+                    server_configuration=ServerConfiguration(
+                        f"ws://localhost:{port}/showdown/websocket",
+                        "https://play.pokemonshowdown.com/action.php?",
+                    ),
+                    battle_format=format_map[target_reg],
+                    log_level=25,
+                    max_concurrent_battles=10,
+                    accept_open_team_sheet=True,
+                    open_timeout=None,
+                    team=StationaryTeamBuilder(team)
+                )
+                path = f"results/saves_bc-sp/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
+                agent.set_policy(path, device(dev))
+                agents += [agent]
+            print(f"Starting cross-eval {run} on reg_{target_reg}...")
+            results = asyncio.run(cross_evaluate(agents, num_battles))
+            payoff_matrix = np.array(
+                [
+                    [r if r is not None else np.nan for r in result.values()]
+                    for result in results.values()
+                ]
+            )
+            avg_payoff_matrix += payoff_matrix / num_teams
+        print(f"Cross evaluation results on reg_{target_reg}:")
+        print(avg_payoff_matrix.round(decimals=3)) # results are relative to row player!
 
 # -----------------------------------------------------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a Pokémon AI model")
-    # parser.add_argument(
-    #     "--reg", type=str, required=True, help="VGC regulation to eval on, i.e. G"
-    # )
-    # parser.add_argument(
-    #     "--num_teams", type=int, required=True, help="Number of teams to eval with"
-    # )
     parser.add_argument(
         "--port", type=int, default=8000, help="Port to run showdown server on"
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda:0",
-        help="CUDA device to use for eval",
+        "--device", type=str, default="cuda:0", help="CUDA device to use for eval"
+    )
+    parser.add_argument(
+        "--num_teams", type=int, default=10, help="Number of matchups to evaluate on"
+    )
+    parser.add_argument(
+        "--num_battles", type=int, default=10, help="Number of battles for each matchup"
+    )
+    parser.add_argument(
+        "--out_of_dist", type=bool, default=True, help="If True, uses teams not seen by the agents during training"
     )
     args = parser.parse_args()
-    # reg = args.reg.lower()
-    # print_team_statistics(reg, args.num_teams)
-    # cross_eval_all_agents(reg, args.num_teams, args.port, args.device, 1000, 100)
-    # team_counts = [1, 4, 16, 64]
-    # methods = [
-    #     ("bc_sp", [4915200, 1474560, 4816896, 1179648, 786432]),
-    #     ("bc_sp", [589824, 3047424, 4128768, 983040, 3538944]),
-    #     ("bc_do", [3833856, 1671168, 5013504, 2654208, 4030464]),
-    #     ("bc_sp", [1769472, 2064384, 4227072, 983040, 5013504]),
-    # ]
-    # cross_eval_over_team_sizes(
-    #     team_counts, methods, args.port, args.device, 1000, True
-    # )
-    # cross_eval_over_team_sizes(
-    #     team_counts, methods, args.port, args.device, 1000, False
-    # )
-    checkpoints = [5013504, 5013504, 4423680, 5013504]
-    print("Starting cross eval with args:", checkpoints, args.port, args.device)
-    cross_eval_regs_baseline(checkpoints, args.port, args.device, 1000)
+
+    checkpoints = {'f':5013504, 'g':5013504, 'h':4423680, 'i':5013504}
+    print("Starting cross eval with args:", checkpoints, args.port, args.device, args.num_teams, args.num_battles)
+    cross_eval_regs_baseline(
+        [k for k in checkpoints.keys()],
+        [v for v in checkpoints.values()],
+        args.port,
+        args.device,
+        args.num_teams,
+        args.num_battles,
+        True
+    )

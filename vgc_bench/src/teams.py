@@ -167,6 +167,34 @@ class RandomTeamBuilder(Teambuilder):
             return self._load_team(random.choice(paths))
 
 
+class NonRepeatingTeamBuilder(RandomTeamBuilder):
+    def yield_team(self) -> str:
+        """
+        Get a team for the next battle, loading from file on demand.
+        After selecting a team, it is removed from the pool for future selection.
+
+        Returns:
+            Packed team string, randomly selected.
+        """
+        if self.available_regs is not None:
+            assert self.current_reg is not None
+            paths = self._reg_paths[self.current_reg]
+        else:
+            paths = self._team_paths
+        team = random.choice(paths)
+        self._team_paths.remove(team)
+        return self._load_team(team)
+
+
+# simple wrapper because the poke-env one does further processing
+class StationaryTeamBuilder(Teambuilder):
+    def __init__(self, team):
+        self.team = team
+
+    def yield_team(self) -> str:
+        return self.team
+
+
 def calc_team_similarity_score(team1: str, team2: str):
     """
     Roughly measures similarity between two teams on a scale of 0-1

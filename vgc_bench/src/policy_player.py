@@ -140,7 +140,7 @@ class PolicyPlayer(Player):
                     if packed_team:
                         self._current_packed_team = packed_team
                     else:
-                        self.get_next_team()
+                        pass #self.get_next_team()
                     await self.ps_client.accept_challenge(
                         username, self._current_packed_team
                     )
