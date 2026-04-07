@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vgc-bench"
 version = "0.1.0"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 authors = [{ name = "Cameron Angliss", email = "cameronangliss99@gmail.com" }]
 dependencies = [
     "accelerate==1.12.0",
@@ -30,11 +30,15 @@ include = ["vgc_bench"]
 line-length = 88
 extend-exclude = ["pokemon-showdown"]
 
+[tool.ruff.format]
+skip-magic-trailing-comma = true
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["vgc_bench"]
+split-on-trailing-comma = false
 
 [tool.pytest.ini_options]
 testpaths = ["unit_tests", "integration_tests"]

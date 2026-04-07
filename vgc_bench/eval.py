@@ -55,6 +55,7 @@ def cross_eval_all_agents(
         num_llm_battles: Total number of battles involving the LLM player.
     """
     battle_format = format_map[reg]
+    output_dir = Path("results")
     num_runs = 5
     avg_payoff_matrix = np.zeros((11, 11))
     labels = ["R", "MBP", "SH", "LLM", "SP", "FP", "DO", "BC", "BCSP", "BCFP", "BCDO"]
@@ -106,10 +107,11 @@ def cross_eval_all_agents(
                 open_timeout=None,
                 team=RandomTeamBuilder(run_id, num_teams, reg),
             )
-            policy_path = f"results{run_id}/saves-{method}"
+            save_dir = output_dir / f"saves_{method}"
             if method != "bc":
-                policy_path += f"/{num_teams}-teams"
-            agent.policy = PPO.load(f"{policy_path}/{checkpoint}", device=device).policy
+                save_dir = save_dir / f"reg_{reg}" / f"{num_teams}_teams"
+            save_dir = save_dir / f"seed{run_id}"
+            agent.policy = PPO.load(save_dir / str(checkpoint), device=device).policy
             players += [agent]
         results = asyncio.run(
             cross_evaluate(players, n_challenges=num_battles // num_runs)
@@ -181,6 +183,7 @@ async def get_best_checkpoints(
         Dictionary mapping method names to their best checkpoint timesteps.
     """
     battle_format = format_map[reg]
+    output_dir = Path("results")
     best_checkpoints = {}
     save_policy = BatchPolicyPlayer(
         server_configuration=ServerConfiguration(
@@ -208,27 +211,39 @@ async def get_best_checkpoints(
     )
     filess = [
         sorted(
-            Path(f"results{run_id}/saves-{method}/{num_teams}-teams").iterdir(),
+            (
+                output_dir
+                / f"saves_{method}"
+                / f"reg_{reg}"
+                / f"{num_teams}_teams"
+                / f"seed{run_id}"
+            ).iterdir(),
             key=lambda p: int(p.stem),
         )[cutoff:]
-        for method in ["sp", "fp", "do", "bc-sp", "bc-fp", "bc-do"]
+        for method in ["sp", "fp", "do", "bc_sp", "bc_fp", "bc_do"]
     ]
     files = [file for files in filess for file in files]
     eval_pool_files = random.sample(files, eval_pool_size)
-    for method in ["sp", "fp", "do", "bc", "bc-sp", "bc-fp", "bc-do"]:
+    for method in ["sp", "fp", "do", "bc", "bc_sp", "bc_fp", "bc_do"]:
         if method == "bc":
             best_checkpoints["bc"] = 100
             continue
-        data = extract_tb(
-            f"results{run_id}/logs-{method}/{num_teams}-teams_0", "train/eval"
-        )
+        save_label = f"reg_{reg}/{num_teams}_teams/seed{run_id}"
+        log_path = str(output_dir / f"logs_{method}" / f"{save_label}_0")
+        data = extract_tb(log_path, "train/eval")
         eval_scores = [d[1] for d in data]
         min_score = np.percentile(eval_scores, 90)
         best_indices = np.where(eval_scores >= min_score)[0][::-1]
         checkpoints = np.array([d[0] for d in data])[best_indices]
         win_rates = {}
         for checkpoint in checkpoints:
-            save_dir = Path(f"results{run_id}/saves-{method}/{num_teams}-teams")
+            save_dir = (
+                output_dir
+                / f"saves_{method}"
+                / f"reg_{reg}"
+                / f"{num_teams}_teams"
+                / f"seed{run_id}"
+            )
             save_policy.policy = PPO.load(
                 save_dir / f"{checkpoint}", device=device
             ).policy
@@ -295,6 +310,7 @@ def cross_eval_over_team_sizes(
     """
     # if is_performance_test is False, then this becomes the generalization test
     battle_format = format_map[reg]
+    output_dir = Path("results")
     num_runs = 5
     avg_payoff_matrix = np.zeros((4, 4))
     for run_id in range(1, num_runs + 1):
@@ -302,7 +318,7 @@ def cross_eval_over_team_sizes(
         for num_teams, (method, checkpoints) in zip(team_counts, methods):
             agent = BatchPolicyPlayer(
                 account_configuration=AccountConfiguration.generate(
-                    f"{run_id}/{method}/{num_teams}-teams"
+                    f"{run_id}/{method}/{num_teams}_teams"
                 ),
                 server_configuration=ServerConfiguration(
                     f"ws://localhost:{port}/showdown/websocket",
@@ -321,8 +337,14 @@ def cross_eval_over_team_sizes(
                 ),
             )
             checkpoint = checkpoints[run_id - 1]
-            path = f"results{run_id}/saves-{method}/{num_teams}-teams/{checkpoint}"
-            agent.policy = PPO.load(path, device=device).policy
+            save_dir = (
+                output_dir
+                / f"saves_{method}"
+                / f"reg_{reg}"
+                / f"{num_teams}_teams"
+                / f"seed{run_id}"
+            )
+            agent.policy = PPO.load(save_dir / str(checkpoint), device=device).policy
             agents += [agent]
         results = asyncio.run(cross_evaluate(agents, num_battles // num_runs))
         payoff_matrix = np.array(
@@ -339,7 +361,7 @@ def cross_eval_over_team_sizes(
     alpharank.utils.print_rankings_table(
         [avg_payoff_matrix],
         pi,
-        strat_labels=[f"{n}-teams" for n in team_counts],
+        strat_labels=[f"{n}_teams" for n in team_counts],
         num_top_strats_to_print=len(pi),
     )
 
@@ -482,10 +504,10 @@ if __name__ == "__main__":
     # cross_eval_all_agents(reg, args.num_teams, args.port, args.device, 1000, 100)
     # team_counts = [1, 4, 16, 64]
     # methods = [
-    #     ("bc-sp", [4915200, 1474560, 4816896, 1179648, 786432]),
-    #     ("bc-sp", [589824, 3047424, 4128768, 983040, 3538944]),
-    #     ("bc-do", [3833856, 1671168, 5013504, 2654208, 4030464]),
-    #     ("bc-sp", [1769472, 2064384, 4227072, 983040, 5013504]),
+    #     ("bc_sp", [4915200, 1474560, 4816896, 1179648, 786432]),
+    #     ("bc_sp", [589824, 3047424, 4128768, 983040, 3538944]),
+    #     ("bc_do", [3833856, 1671168, 5013504, 2654208, 4030464]),
+    #     ("bc_sp", [1769472, 2064384, 4227072, 983040, 5013504]),
     # ]
     # cross_eval_over_team_sizes(
     #     team_counts, methods, args.port, args.device, 1000, True

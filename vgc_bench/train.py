@@ -35,7 +35,7 @@ def train(
     team1: str | None,
     team2: str | None,
     results_suffix: str,
-    total_timesteps: int | None = None,
+    total_steps: int,
     evaluate: bool = True,
 ):
     """
@@ -61,10 +61,20 @@ def train(
         team1: Optional team string for matchup solving (requires team2).
         team2: Optional team string for matchup solving (requires team1).
         results_suffix: Suffix appended to results<run_id> for output paths.
-        total_timesteps: Total training timesteps. Defaults to 1000 * save_interval.
+        total_steps: Total training timesteps. Defaults to 1000 * save_interval.
         evaluate: Whether to run evaluations and save checkpoints.
     """
     save_interval = 98_304
+    suffix = f"_{results_suffix}" if results_suffix else ""
+    output_dir = Path(f"results{suffix}")
+    output_dir.mkdir(exist_ok=True)
+    team_paths = None
+    if team1 and team2:
+        team1_path = output_dir / "team1.txt"
+        team2_path = output_dir / "team2.txt"
+        team1_path.write_text(team1[1:])
+        team2_path.write_text(team2[1:])
+        team_paths = [team1_path, team2_path]
     env = (
         ShowdownEnv.create_env(
             reg,
@@ -76,8 +86,7 @@ def train(
             learning_style,
             allow_mirror_match,
             choose_on_teampreview,
-            team1,
-            team2,
+            team_paths,
         )
         if learning_style == LearningStyle.PURE_SELF_PLAY
         else SubprocVecEnv(
@@ -92,34 +101,23 @@ def train(
                     learning_style,
                     allow_mirror_match,
                     choose_on_teampreview,
-                    team1,
-                    team2,
+                    team_paths,
                 )
                 for _ in range(num_envs)
             ]
         )
     )
-    method = "".join(
-        [
-            "-bc" if behavior_clone else "",
-            "-" + learning_style.abbrev,
-            "-xm" if not allow_mirror_match else "",
-            "-xt" if not choose_on_teampreview else "",
-        ]
-    )[1:]
-    suffix = f"-{results_suffix}" if results_suffix else ""
-    output_dir = Path(f"results{suffix}")
-    output_dir.mkdir(exist_ok=True)
-    if team1 and team2:
-        (output_dir / "team1.txt").write_text(team1[1:])
-        (output_dir / "team2.txt").write_text(team2[1:])
-    method_dir = output_dir / f"saves-{method}"
-    if reg is not None and num_teams is not None:
-        method_dir = method_dir / f"reg{reg}-{num_teams}-teams"
-    elif reg is not None:
-        method_dir = method_dir / f"reg{reg}"
-    elif num_teams is not None:
-        method_dir = method_dir / f"{num_teams}-teams"
+    method_tags = [
+        "bc" if behavior_clone else None,
+        learning_style.abbrev,
+        "xm" if not allow_mirror_match else None,
+        "xt" if not choose_on_teampreview else None,
+    ]
+    method = "_".join([p for p in method_tags if p is not None])
+    method_dir = output_dir / f"saves_{method}"
+    method_dir = method_dir / (f"reg_{reg}" if reg is not None else "reg_all")
+    if num_teams is not None:
+        method_dir = method_dir / f"{num_teams}_teams"
     save_dir = method_dir / f"seed{run_id}"
     ppo = PPO(
         MaskedActorCriticPolicy,
@@ -132,8 +130,8 @@ def train(
         ),
         batch_size=512,
         gamma=1,
-        ent_coef=0.02,
-        tensorboard_log=str(output_dir / f"logs-{method}"),
+        ent_coef=0.1,
+        tensorboard_log=str(output_dir / f"logs_{method}"),
         policy_kwargs={"d_model": 256, "choose_on_teampreview": choose_on_teampreview},
         device=device,
     )
@@ -150,11 +148,8 @@ def train(
             if num_saved_timesteps < save_interval:
                 num_saved_timesteps = 0
             ppo.num_timesteps = num_saved_timesteps
-    effective_total = (
-        total_timesteps if total_timesteps is not None else 1000 * save_interval
-    )
     ppo.learn(
-        effective_total - num_saved_timesteps,
+        total_steps - num_saved_timesteps,
         callback=Callback(
             run_id,
             num_teams,
@@ -167,12 +162,12 @@ def train(
             allow_mirror_match,
             choose_on_teampreview,
             save_interval,
-            team1,
-            team2,
+            team_paths,
             results_suffix,
+            total_steps,
             evaluate,
         ),
-        tb_log_name=str(save_dir.relative_to(output_dir / f"saves-{method}")),
+        tb_log_name=str(save_dir.relative_to(output_dir / f"saves_{method}")),
         reset_num_timesteps=False,
     )
     env.close()
@@ -275,10 +270,7 @@ if __name__ == "__main__":
         "--device", type=str, default="cuda:0", help="device to use for training"
     )
     parser.add_argument(
-        "--total_timesteps",
-        type=int,
-        default=None,
-        help="total training timesteps (default: 1000 * save_interval)",
+        "--total_steps", type=int, required=True, help="total training timesteps"
     )
     args = parser.parse_args()
     set_global_seed(args.run_id)
@@ -328,5 +320,5 @@ if __name__ == "__main__":
         args.team1 or None,
         args.team2 or None,
         args.results_suffix,
-        args.total_timesteps,
+        args.total_steps,
     )

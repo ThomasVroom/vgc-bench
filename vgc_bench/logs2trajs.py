@@ -31,6 +31,7 @@ from poke_env.player import (
     SingleBattleOrder,
 )
 from poke_env.ps_client import AccountConfiguration
+from poke_env.teambuilder import Teambuilder
 
 from vgc_bench.src.policy_player import PolicyPlayer
 from vgc_bench.src.utils import chunk_obs_len
@@ -229,6 +230,18 @@ class LogReader(Player):
         battle.logger = None
         split_messages = [m.split("|") for m in messages[0].split("\n")]
         await self._handle_battle_message(split_messages)
+        for split_message in split_messages:
+            if len(split_message) > 1 and split_message[1] == "showteam":
+                role = split_message[2]
+                if role != battle.player_role:
+                    continue
+                teambuilder_team = Teambuilder.parse_packed_team(
+                    "|".join(split_message[3:])
+                )
+                battle.apply_teambuilder_team(
+                    role, teambuilder_team, battle.teampreview_team
+                )
+                break
         for i in range(1, len(messages)):
             split_messages = [m.split("|") for m in messages[i].split("\n")]
             self.next_msg = messages[i]
@@ -348,7 +361,8 @@ def process_logs(
     num_trans = sum([len(t.acts) for t in trajs])
     print(
         f"prepared {len(trajs)} trajectories with {num_trans} transitions "
-        f"({num_empty} discarded trajs, {num_errors} failed traj reads)"
+        f"({num_empty} discarded trajs, {num_errors} failed traj reads)",
+        flush=True,
     )
     return trajs
 
@@ -387,8 +401,7 @@ def process_log(
             loop=_READER_LOOP,
         )
         results = asyncio.run_coroutine_threadsafe(
-            player.follow_log(tag, log),
-            _READER_LOOP,
+            player.follow_log(tag, log), _READER_LOOP
         ).result()
         if results is not None:
             states, actions = results
@@ -422,7 +435,7 @@ def main(num_workers: int, min_rating: int | None, only_winner: bool, strict: bo
     total = 0
     for f in Path("battle_logs").iterdir():
         logs = json.load(f.open())
-        print(f"processing {len(logs)} {f.stem} logs...")
+        print(f"processing {len(logs)} {f.stem} logs...", flush=True)
         trajs = process_logs(logs, executor, min_rating, only_winner, strict)
         for i, traj in enumerate(trajs, start=total):
             with open(f"trajs/{i:08d}.pkl", "wb") as f:
