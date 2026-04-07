@@ -439,7 +439,7 @@ def cross_eval_regs_baseline(
                     1,
                     64,
                     target_reg,
-                    take_from_end=True, # use out-of-dist teams
+                    take_from_end=True, # True = use out-of-dist teams
                 )
             )
             path = f"results/saves-bc-sp/reg{source_reg}-64-teams/seed1/{checkpoints[i]}.zip"

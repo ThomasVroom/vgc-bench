@@ -25,7 +25,7 @@ sleep 10
 echo "Running evaluation..."
 
 # Run python module and save output
-python3.13 -m vgc_bench.eval \
+python3.13 -u -m vgc_bench.eval \
     --port $PORT \
     --device $DEVICE \
     > "$LOGFILE" 2>&1
