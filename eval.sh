@@ -26,10 +26,12 @@ echo "Running evaluation..."
 
 # Run python module and save output
 python3.13 -u -m vgc_bench.eval \
+    --method BC-SP \
     --port $PORT \
     --device $DEVICE \
     --num_teams 50 \
     --num_battles 10 \
+    --out_of_dist True \
     > "$LOGFILE" 2>&1
 
 EXIT_STATUS=$?

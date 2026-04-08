@@ -426,6 +426,7 @@ def print_team_statistics(reg: str, num_teams: int):
 def cross_eval_regs_baseline(
     regs: list[str],
     checkpoints: list[int],
+    method: str,
     port: int,
     dev: str,
     num_teams: int,
@@ -433,13 +434,14 @@ def cross_eval_regs_baseline(
     out_of_dist: bool,
 ):
     """
-    Cross-evaluate BC-SP agents trained on different regulations.
+    Cross-evaluate agents trained on different regulations.
 
     Tests how much agents trained on a certain regulation can generalize to different regulations without further training.
 
     Args:
         regs: List of regulations.
         checkpoints: List of checkpoints for each reg.
+        method: Name of the method used.
         port: Port for the Pokemon Showdown server.
         dev: CUDA device for model inference.
         num_teams: Number of different teams to evaluate with (all mirror matches).
@@ -458,7 +460,7 @@ def cross_eval_regs_baseline(
         for i, source_reg in enumerate(regs):
             agent = BatchPolicyPlayer(
                 account_configuration=AccountConfiguration.generate(
-                    f"{target_reg}/BC-SP/reg_{source_reg}"
+                    f"{target_reg}/{method}/reg_{source_reg}"
                 ),
                 server_configuration=ServerConfiguration(
                     f"ws://localhost:{port}/showdown/websocket",
@@ -471,7 +473,7 @@ def cross_eval_regs_baseline(
                 open_timeout=None,
                 team=StationaryTeamBuilder("")
             )
-            path = f"results/saves_bc-sp/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
+            path = f"results/saves_{method.lower()}/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
             agent.set_policy(path, device)
             agents += [agent]
         avg_payoff_matrix = np.zeros((len(regs), len(regs)))
@@ -496,6 +498,9 @@ def cross_eval_regs_baseline(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a Pokémon AI model")
     parser.add_argument(
+        "--method", type=str, default="BC-SP", help="Name of the method used"
+    )
+    parser.add_argument(
         "--port", type=int, default=8000, help="Port to run showdown server on"
     )
     parser.add_argument(
@@ -513,13 +518,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     checkpoints = {'f':5013504, 'g':5013504, 'h':4423680, 'i':5013504}
-    print("Starting cross eval with args:", checkpoints, args.port, args.device, args.num_teams, args.num_battles)
+    print(
+        "Starting cross eval with args:", checkpoints,
+        args.method, args.port, args.device, args.num_teams, args.num_battles, args.out_of_dist
+    )
     cross_eval_regs_baseline(
         [k for k in checkpoints.keys()],
         [v for v in checkpoints.values()],
+        args.method,
         args.port,
         args.device,
         args.num_teams,
         args.num_battles,
-        True
+        args.out_of_dist
     )
