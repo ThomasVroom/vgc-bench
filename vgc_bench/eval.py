@@ -431,7 +431,7 @@ def cross_eval_regs_baseline(
     dev: str,
     num_teams: int,
     num_battles: int,
-    out_of_dist: bool,
+    in_dist: bool,
 ):
     """
     Cross-evaluate agents trained on different regulations.
@@ -446,7 +446,7 @@ def cross_eval_regs_baseline(
         dev: CUDA device for model inference.
         num_teams: Number of different teams to evaluate with (all mirror matches).
         num_battles: Number of times to repeat each matchup.
-        out_of_dist: If True, uses teams not seen by the agents during training.
+        in_dist: If False, uses teams not seen by the agents during training.
     """
     device = torch.device(dev)
     for target_reg in regs:
@@ -454,7 +454,7 @@ def cross_eval_regs_baseline(
             1,
             64,
             target_reg,
-            take_from_end=out_of_dist,
+            take_from_end=(not in_dist),
         )
         agents = []
         for i, source_reg in enumerate(regs):
@@ -513,14 +513,14 @@ if __name__ == "__main__":
         "--num_battles", type=int, default=10, help="Number of battles for each matchup"
     )
     parser.add_argument(
-        "--out_of_dist", type=bool, default=True, help="If True, uses teams not seen by the agents during training"
+        "--in_dist", action="store_true", default=False, help="Uses teams seen by one of the agents during training"
     )
     args = parser.parse_args()
 
     checkpoints = {'f':5013504, 'g':5013504, 'h':4423680, 'i':5013504}
     print(
         "Starting cross eval with args:", checkpoints,
-        args.method, args.port, args.device, args.num_teams, args.num_battles, args.out_of_dist
+        args.method, args.port, args.device, args.num_teams, args.num_battles, args.in_dist
     )
     cross_eval_regs_baseline(
         [k for k in checkpoints.keys()],
@@ -530,5 +530,5 @@ if __name__ == "__main__":
         args.device,
         args.num_teams,
         args.num_battles,
-        args.out_of_dist
+        args.in_dist
     )

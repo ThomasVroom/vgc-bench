@@ -31,7 +31,7 @@ python3.13 -u -m vgc_bench.eval \
     --device $DEVICE \
     --num_teams 50 \
     --num_battles 10 \
-    --out_of_dist True \
+    # --in_dist \
     > "$LOGFILE" 2>&1
 
 EXIT_STATUS=$?
