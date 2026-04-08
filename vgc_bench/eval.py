@@ -12,8 +12,8 @@ import random
 from pathlib import Path
 from statistics import mean, median
 
+import torch
 import numpy as np
-from torch import device
 from poke_env import cross_evaluate
 from poke_env.player import MaxBasePowerPlayer, RandomPlayer, SimpleHeuristicsPlayer
 from poke_env.ps_client import AccountConfiguration, ServerConfiguration
@@ -446,6 +446,7 @@ def cross_eval_regs_baseline(
         num_battles: Number of times to repeat each matchup.
         out_of_dist: If True, uses teams not seen by the agents during training.
     """
+    device = torch.device(dev)
     for target_reg in regs:
         team_selector = NonRepeatingTeamBuilder(
             1,
@@ -453,30 +454,32 @@ def cross_eval_regs_baseline(
             target_reg,
             take_from_end=out_of_dist,
         )
+        agents = []
+        for i, source_reg in enumerate(regs):
+            agent = BatchPolicyPlayer(
+                account_configuration=AccountConfiguration.generate(
+                    f"{target_reg}/BC-SP/reg_{source_reg}"
+                ),
+                server_configuration=ServerConfiguration(
+                    f"ws://localhost:{port}/showdown/websocket",
+                    "https://play.pokemonshowdown.com/action.php?",
+                ),
+                battle_format=format_map[target_reg],
+                log_level=25,
+                max_concurrent_battles=10,
+                accept_open_team_sheet=True,
+                open_timeout=None,
+                team=StationaryTeamBuilder("")
+            )
+            path = f"results/saves_bc-sp/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
+            agent.set_policy(path, device)
+            agents += [agent]
         avg_payoff_matrix = np.zeros((len(regs), len(regs)))
         for run in range(num_teams):
             team = team_selector.yield_team()
-            agents = []
-            for i, source_reg in enumerate(regs):
-                agent = BatchPolicyPlayer(
-                    account_configuration=AccountConfiguration.generate(
-                        f"BC-SP/reg_{source_reg}/{run}"
-                    ),
-                    server_configuration=ServerConfiguration(
-                        f"ws://localhost:{port}/showdown/websocket",
-                        "https://play.pokemonshowdown.com/action.php?",
-                    ),
-                    battle_format=format_map[target_reg],
-                    log_level=25,
-                    max_concurrent_battles=10,
-                    accept_open_team_sheet=True,
-                    open_timeout=None,
-                    team=StationaryTeamBuilder(team)
-                )
-                path = f"results/saves_bc-sp/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
-                agent.set_policy(path, device(dev))
-                agents += [agent]
-            print(f"Starting cross-eval {run} on reg_{target_reg}...")
+            for i in range(len(agents)):
+                agents[i].update_team(StationaryTeamBuilder(team))
+            print(f"Starting cross-eval {run} on reg_{target_reg}... ({torch.cuda.memory_allocated(device)} VRAM)")
             results = asyncio.run(cross_evaluate(agents, num_battles))
             payoff_matrix = np.array(
                 [
