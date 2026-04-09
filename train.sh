@@ -1,10 +1,12 @@
 #!/bin/bash
 
-run_ids=(1)
-team_counts=(64)
-ports=(7200)
-devices=("cuda:0")
-reg="F"
+run_ids=(1 1 1 1)
+team_counts=(64 64 64 64)
+ports=(7200 7201 7202 7203)
+devices=("cuda:0" "cuda:0" "cuda:1" "cuda:1")
+regs=("F" "G" "H" "I")
+
+num_envs=16
 total_steps=$((51 * 98304))  # 98304 is the number of steps per save during training
 
 start_showdown() {
@@ -22,6 +24,7 @@ train() {
     local num_teams="${team_counts[$i]}"
     local port="${ports[$i]}"
     local device="${devices[$i]}"
+    local reg="${regs[$i]}"
 
     echo "Starting Showdown server for training process $i..."
     showdown_pid=$(start_showdown $port)
@@ -30,11 +33,10 @@ train() {
     python3.13 -m vgc_bench.train \
         --run_id $run_id \
         --num_teams $num_teams \
-        --num_envs 16 \
-        --num_eval_workers 16 \
+        --num_envs $num_envs \
+        --num_eval_workers $num_envs \
         --port $port \
         --device $device \
-        --behavior_clone \
         --self_play \
         --reg $reg \
         --total_steps "$total_steps" \
