@@ -473,7 +473,7 @@ def cross_eval_regs_baseline(
                 open_timeout=None,
                 team=StationaryTeamBuilder("")
             )
-            path = f"results/saves_{method.lower()}/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
+            path = f"results/saves_{method}/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
             agent.set_policy(path, device)
             agents += [agent]
         avg_payoff_matrix = np.zeros((len(regs), len(regs)))
@@ -498,7 +498,7 @@ def cross_eval_regs_baseline(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a Pokémon AI model")
     parser.add_argument(
-        "--method", type=str, default="BC-SP", help="Name of the method used"
+        "--method", type=str, default="SP", help="Name of the method used"
     )
     parser.add_argument(
         "--port", type=int, default=8000, help="Port to run showdown server on"
@@ -517,7 +517,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    checkpoints = {'f':5013504, 'g':5013504, 'h':4423680, 'i':5013504}
+    checkpoints = {'f':5013504, 'g':5013504, 'h':5013504, 'i':5013504}
     print(
         "Starting cross eval with args:", checkpoints,
         args.method, args.port, args.device, args.num_teams, args.num_battles, args.in_dist
@@ -525,7 +525,7 @@ if __name__ == "__main__":
     cross_eval_regs_baseline(
         [k for k in checkpoints.keys()],
         [v for v in checkpoints.values()],
-        args.method,
+        args.method.lower(),
         args.port,
         args.device,
         args.num_teams,
