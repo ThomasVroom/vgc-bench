@@ -102,22 +102,22 @@ chunk_obs_len = glob_obs_len + side_obs_len + pokemon_obs_len
 
 # pokemon data
 format_map = {
-    "a": "gen9vgc2022rega",
-    "b": "gen9vgc2023regb",
-    "c": "gen9vgc2023regc",
-    "d": "gen9vgc2023regd",
-    "e": "gen9vgc2024rege",
-    "f": "gen9vgc2026regf",
-    "g": "gen9vgc2024regg",
-    "h": "gen9vgc2025regh",
-    "i": "gen9vgc2026regi",
-    "j": "gen9vgc2025regj",
+    "a": "gen9vgc2026allregs",
+    "b": "gen9vgc2026allregs",
+    "c": "gen9vgc2026allregs",
+    "d": "gen9vgc2026allregs",
+    "e": "gen9vgc2026allregs",
+    "f": "gen9vgc2026allregs",
+    "g": "gen9vgc2026allregs",
+    "h": "gen9vgc2026allregs",
+    "i": "gen9vgc2026allregs",
+    "j": "gen9vgc2026allregs",
 }
 
 
 def is_vgc_format(fmt: str) -> bool:
-    """Check if a format string is a recognized VGC format."""
-    return bool(re.match(r"gen9vgc\d{4}reg[a-j]", fmt))
+    assert fmt == "gen9vgc2026allregs"
+    return True
 
 
 with open("data/abilities.json") as f:

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-run_ids=(1 1 1 1)
-team_counts=(64 64 64 64)
-ports=(7200 7201 7202 7203)
-devices=("cuda:0" "cuda:0" "cuda:1" "cuda:1")
-regs=("F" "G" "H" "I")
+run_ids=(1 1 1 1 1 1)
+team_counts=(64 64 64 64 64 64)
+ports=(7200 7200 7200 7200 7200 7200)
+devices=("cuda:1" "cuda:1" "cuda:1" "cuda:1" "cuda:1" "cuda:1")
+regs=("A" "B" "C" "D" "E" "J")
 
 num_envs=16
 total_steps=$((51 * 98304))  # 98304 is the number of steps per save during training
@@ -52,7 +52,7 @@ train() {
 
 trap "echo 'Stopping...'; kill 0" SIGINT
 for i in "${!run_ids[@]}"; do
-    train $i &
+    train $i
     sleep 30
 done
 wait
