@@ -517,7 +517,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    checkpoints = {'f':5013504, 'g':5013504, 'h':5013504, 'i':5013504}
+    checkpoints = {
+        'a':5013504, 'b':5013504, 'c':5013504, 'd':5013504, 'e':5013504, 
+        'f':5013504, 'g':5013504, 'h':5013504, 'i':5013504, 'j':5013504
+    }
     print(
         "Starting cross eval with args:", checkpoints,
         args.method, args.port, args.device, args.num_teams, args.num_battles, args.in_dist
