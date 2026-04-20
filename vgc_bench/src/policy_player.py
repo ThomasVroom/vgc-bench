@@ -42,6 +42,7 @@ from vgc_bench.src.policy import MaskedActorCriticPolicy
 from vgc_bench.src.teams import RandomTeamBuilder
 from vgc_bench.src.utils import (
     abilities,
+    get_reg_from_format,
     is_vgc_format,
     items,
     move_obs_len,
@@ -67,6 +68,8 @@ class PolicyPlayer(Player):
         self,
         policy: BasePolicy | None = None,
         accept_all_formats: bool = False,
+        deterministic: bool = False,
+        invitee: str | None = None,
         *args: Any,
         **kwargs: Any,
     ):
@@ -79,12 +82,16 @@ class PolicyPlayer(Player):
                 VGC format instead of only ``battle_format``. Requires the
                 team builder to be in multi-reg mode (``reg=None``) so the
                 correct regulation's teams are yielded.
+            deterministic: If True, always pick the highest-probability action
+                instead of sampling from the distribution.
             *args: Additional arguments for Player base class.
             **kwargs: Additional keyword arguments for Player base class.
         """
         super().__init__(*args, **kwargs)
         self.policy = policy
         self._accept_all_formats = accept_all_formats
+        self.deterministic = deterministic
+        self.invitee = invitee
 
     async def _handle_challenge_request(self, split_message: list[str]):
         """Accept challenge requests, optionally for any recognized format."""
@@ -136,7 +143,7 @@ class PolicyPlayer(Player):
                         isinstance(self._team, RandomTeamBuilder)
                         and self._team.available_regs is not None
                     ):
-                        self._team.current_reg = fmt[-1]
+                        self._team.current_reg = get_reg_from_format(fmt)
                     if packed_team:
                         self._current_packed_team = packed_team
                     else:
@@ -151,15 +158,33 @@ class PolicyPlayer(Player):
     async def _create_battle(self, split_message: list[str]):
         """Create a battle, accepting any recognized format if configured."""
         if not self._accept_all_formats:
-            return await super()._create_battle(split_message)
-        if is_vgc_format(split_message[1]):
-            saved = self._format
+            battle = await super()._create_battle(split_message)
+        elif is_vgc_format(split_message[1]):
+            saved = self.format
             self._format = split_message[1]
             try:
-                return await super()._create_battle(split_message)
+                battle = await super()._create_battle(split_message)
             finally:
                 self._format = saved
-        return await super()._create_battle(split_message)
+        else:
+            battle = await super()._create_battle(split_message)
+        if self.invitee is not None and "bo3" not in self.format:
+            await self.ps_client.send_message(
+                f"/invite {self.invitee}", battle.battle_tag
+            )
+        return battle
+
+    async def _handle_bestof_message(self, split_messages):
+        """Handle best-of series messages, inviting spectator to the lobby."""
+        if self.invitee is not None:
+            game_tag = split_messages[0][0][1:]  # strip >
+            for split_message in split_messages[1:]:
+                if len(split_message) >= 2 and split_message[1] == "init":
+                    await self.ps_client.send_message(
+                        f"/invite {self.invitee}", room=game_tag
+                    )
+                    break
+        await super()._handle_bestof_message(split_messages)
 
     def set_policy(self, policy_file: str | Path, device: torch.device):
         """
@@ -207,7 +232,9 @@ class PolicyPlayer(Player):
                     mask, device=self.policy.device
                 ).unsqueeze(0),
             }
-            action, _, _ = self.policy.forward(obs_dict)  # type: ignore
+            action, _, _ = self.policy.forward(
+                obs_dict, deterministic=self.deterministic
+            )
         action = action.cpu().numpy()[0]
         return DoublesEnv.action_to_order(action, battle)
 
@@ -578,7 +605,9 @@ class BatchPolicyPlayer(PolicyPlayer):
                     "observation": torch.as_tensor(obs, device=self.policy.device),
                     "action_mask": torch.as_tensor(masks, device=self.policy.device),
                 }
-                actions, _, _ = self.policy.forward(obs_dict)  # type: ignore
+                actions, _, _ = self.policy.forward(
+                    obs_dict, deterministic=self.deterministic
+                )
             actions = actions.cpu().numpy()
 
             # dispatch

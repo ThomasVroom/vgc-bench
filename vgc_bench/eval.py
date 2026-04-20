@@ -26,8 +26,7 @@ from vgc_bench.src.teams import (
     RandomTeamBuilder,
     NonRepeatingTeamBuilder,
     StationaryTeamBuilder,
-    calc_team_similarity_score,
-    get_team_paths,
+    calc_team_similarity_score
 )
 from vgc_bench.src.utils import format_map
 from vgc_bench.src.pyspiel import alpharank
@@ -381,7 +380,7 @@ def print_team_statistics(reg: str, num_teams: int):
         num_teams: Number of teams in the in-distribution training set.
     """
     num_runs = 5
-    all_teams = [path.read_text() for path in get_team_paths(reg)]
+    all_teams = [path.read_text() for path in RandomTeamBuilder.get_team_paths(reg)]
     sim_scores = [
         max(
             [

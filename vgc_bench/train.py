@@ -64,7 +64,7 @@ def train(
         total_steps: Total training timesteps. Defaults to 1000 * save_interval.
         evaluate: Whether to run evaluations and save checkpoints.
     """
-    save_interval = 98_304
+    save_interval = 983_040
     suffix = f"_{results_suffix}" if results_suffix else ""
     output_dir = Path(f"results{suffix}")
     output_dir.mkdir(exist_ok=True)
@@ -94,7 +94,7 @@ def train(
                 lambda: ShowdownEnv.create_env(
                     reg,
                     run_id,
-                    1 if learning_style == LearningStyle.EXPLOITER else num_teams,
+                    num_teams,
                     num_envs,
                     log_level,
                     port,
@@ -122,7 +122,7 @@ def train(
     ppo = PPO(
         MaskedActorCriticPolicy,
         env,
-        learning_rate=lambda p: 1e-5 * 0.1 ** (1 - p),
+        learning_rate=lambda p: 1e-5 * 0.3 ** (1 - p),
         n_steps=(
             3072 // (2 * num_envs)
             if learning_style == LearningStyle.PURE_SELF_PLAY
@@ -130,7 +130,7 @@ def train(
         ),
         batch_size=512,
         gamma=1,
-        ent_coef=0.1,
+        # ent_coef is set in callback.py based on training progress
         tensorboard_log=str(output_dir / f"logs_{method}"),
         policy_kwargs={"d_model": 256, "choose_on_teampreview": choose_on_teampreview},
         device=device,
@@ -292,11 +292,6 @@ if __name__ == "__main__":
         style = LearningStyle.DOUBLE_ORACLE
     else:
         raise TypeError()
-    if style == LearningStyle.EXPLOITER:
-        assert not args.no_mirror_match, (
-            "--no_mirror_match is incompatible with --exploiter (exploiter uses a"
-            " single team)"
-        )
     assert (args.team1 == "") == (args.team2 == ""), (
         "must provide both or neither of --team1 and --team2"
     )

@@ -75,6 +75,7 @@ class RandomTeamBuilder(Teambuilder):
         custom_team_paths: list[Path] | None = None,
         toggle: TeamToggle | None = None,
         take_from_end: bool = False,
+        prefer_featured: bool = False,
     ):
         """
         Initialize the random team builder.
@@ -90,6 +91,8 @@ class RandomTeamBuilder(Teambuilder):
                 matchup solving). Overrides reg/num_teams selection.
             toggle: Optional TeamToggle to prevent consecutive identical teams.
             take_from_end: If True, take teams from end of shuffled list.
+            prefer_featured: If True, prefer teams from the featured/ subdirectory,
+                falling back to all teams if it doesn't exist.
         """
         self._team_paths: list[Path] = []
         self._reg_paths: dict[str, list[Path]] = {}
@@ -105,7 +108,11 @@ class RandomTeamBuilder(Teambuilder):
                 base, remainder = divmod(num_teams, n)
                 for i, r in enumerate(self.available_regs):
                     paths = self._select_paths(
-                        run_id, base + (1 if i < remainder else 0), r, take_from_end
+                        run_id,
+                        base + (1 if i < remainder else 0),
+                        r,
+                        take_from_end,
+                        prefer_featured,
                     )
                     if paths:
                         self._reg_paths[r] = paths
@@ -113,11 +120,13 @@ class RandomTeamBuilder(Teambuilder):
             else:
                 for r in self.available_regs:
                     self._reg_paths[r] = self._select_paths(
-                        run_id, None, r, take_from_end
+                        run_id, None, r, take_from_end, prefer_featured
                     )
             self.pick_reg()
         else:
-            self._team_paths = self._select_paths(run_id, num_teams, reg, take_from_end)
+            self._team_paths = self._select_paths(
+                run_id, num_teams, reg, take_from_end, prefer_featured
+            )
 
     def pick_reg(self) -> None:
         """Select a regulation uniformly at random for the next battle."""
@@ -126,7 +135,11 @@ class RandomTeamBuilder(Teambuilder):
 
     @staticmethod
     def _select_paths(
-        run_id: int, num_teams: int | None, reg: str, take_from_end: bool
+        run_id: int,
+        num_teams: int | None,
+        reg: str,
+        take_from_end: bool,
+        prefer_featured: bool = False,
     ) -> list[Path]:
         """
         Select team file paths for a given regulation.
@@ -136,13 +149,21 @@ class RandomTeamBuilder(Teambuilder):
             num_teams: Number of teams to include, or None for all.
             reg: VGC regulation letter.
             take_from_end: If True, take teams from end of shuffled list.
+            prefer_featured: If True, prefer teams from the featured/ subdirectory,
+                falling back to all teams if it doesn't exist.
 
         Returns:
             List of Path objects for the selected teams.
         """
-        paths = get_team_paths(reg)
+        paths = RandomTeamBuilder.get_team_paths(reg, prefer_featured)
         effective_num_teams = len(paths) if num_teams is None else num_teams
-        team_ids = get_team_ids(run_id, effective_num_teams, reg, take_from_end)
+        teams = list(range(len(paths)))
+        random.Random(run_id).shuffle(teams)
+        team_ids = (
+            teams[-effective_num_teams:]
+            if take_from_end
+            else teams[:effective_num_teams]
+        )
         return [paths[t] for t in team_ids]
 
     def _load_team(self, path: Path) -> str:
@@ -165,6 +186,41 @@ class RandomTeamBuilder(Teambuilder):
             return self._load_team(paths[self.toggle.next(len(paths))])
         else:
             return self._load_team(random.choice(paths))
+
+    @staticmethod
+    @cache
+    def get_team_paths(reg: str, prefer_featured: bool = False) -> list[Path]:
+        """
+        Get all team file paths for a given regulation.
+
+        Args:
+            reg: VGC regulation letter (e.g. 'g', 'h', 'i').
+            prefer_featured: If True, only return teams from the featured/ subdirectory.
+
+        Returns:
+            List of Path objects pointing to team .txt files.
+        """
+        reg_path = Path("teams") / f"reg_{reg}"
+        if prefer_featured:
+            featured_path = reg_path / "featured"
+            if featured_path.is_dir():
+                return sorted(featured_path.rglob("*.txt"))
+        return sorted(reg_path.rglob("*.txt"))
+
+
+def get_available_regs() -> list[str]:
+    """
+    Discover available regulations from the teams directory.
+
+    Returns:
+        Sorted list of regulation letters that have team directories.
+    """
+    teams_dir = Path("teams")
+    return sorted(
+        d.name.removeprefix("reg_")
+        for d in teams_dir.iterdir()
+        if d.is_dir() and d.name.startswith("reg_")
+    )
 
 
 class NonRepeatingTeamBuilder(RandomTeamBuilder):
@@ -233,64 +289,3 @@ def calc_team_similarity_score(team1: str, team2: str):
             if move in mon2.moves:
                 similarity_score += 1
     return round(similarity_score / 60, ndigits=3)
-
-
-def find_run_id(team_ids: set[int], reg: str) -> int:
-    """
-    Finds lowest run_id > 0 that will have team_ids in the beginning of its team order
-    """
-    run_id = 1
-    while set(get_team_ids(run_id, len(team_ids), reg, False)) != team_ids:
-        run_id += 1
-    return run_id
-
-
-def get_team_ids(
-    run_id: int, num_teams: int, reg: str, take_from_end: bool = False
-) -> list[int]:
-    """
-    Get deterministically shuffled team indices for a given run.
-
-    Args:
-        run_id: Seed for deterministic shuffling.
-        num_teams: Number of team indices to return.
-        reg: VGC regulation letter (e.g. 'g', 'h', 'i').
-        take_from_end: If True, take teams from end of shuffled list.
-
-    Returns:
-        List of team indices.
-    """
-    paths = get_team_paths(reg)
-    teams = list(range(len(paths)))
-    random.Random(run_id).shuffle(teams)
-    return teams[-num_teams:] if take_from_end else teams[:num_teams]
-
-
-@cache
-def get_team_paths(reg: str) -> list[Path]:
-    """
-    Get all team file paths for a given regulation.
-
-    Args:
-        reg: VGC regulation letter (e.g. 'g', 'h', 'i').
-
-    Returns:
-        List of Path objects pointing to team .txt files.
-    """
-    reg_path = Path("teams") / f"reg_{reg}"
-    return sorted(reg_path.rglob("*.txt"))
-
-
-def get_available_regs() -> list[str]:
-    """
-    Discover available regulations from the teams directory.
-
-    Returns:
-        Sorted list of regulation letters that have team directories.
-    """
-    teams_dir = Path("teams")
-    return sorted(
-        d.name.removeprefix("reg_")
-        for d in teams_dir.iterdir()
-        if d.is_dir() and d.name.startswith("reg_")
-    )

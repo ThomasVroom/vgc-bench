@@ -127,8 +127,6 @@ class Callback(BaseCallback):
             else:
                 self.payoff_matrix = np.array([[0.5]])
             self.prob_dist = Game(self.payoff_matrix).linear_program()[0].tolist()
-        if learning_style == LearningStyle.EXPLOITER:
-            num_teams = 1
         toggle = None if allow_mirror_match else TeamToggle()
         if self.evaluate:
             self.eval_agent = BatchPolicyPlayer(
@@ -168,6 +166,7 @@ class Callback(BaseCallback):
                 team=RandomTeamBuilder(run_id, num_teams, reg, team_paths, toggle),
             )
             self.eval_opponent2 = BatchPolicyPlayer(
+                deterministic=True,
                 server_configuration=ServerConfiguration(
                     f"ws://localhost:{port}/showdown/websocket",
                     "https://play.pokemonshowdown.com/action.php?",
@@ -261,7 +260,7 @@ class Callback(BaseCallback):
         assert isinstance(self.model, PPO)
         assert self.model.env is not None
         progress = min(self.model.num_timesteps / self.total_steps, 1.0)
-        self.model.ent_coef = 0.1 * 0.1**progress
+        self.model.ent_coef = 0.05 * (0.01 / 0.05) ** progress
         self.model.logger.record("train/ent_coef", self.model.ent_coef)
         if (
             self.evaluate
@@ -272,9 +271,7 @@ class Callback(BaseCallback):
         self.model.logger.dump(self.model.num_timesteps)
         if self.behavior_clone:
             assert isinstance(self.model.policy, MaskedActorCriticPolicy)
-            self.model.policy.actor_grad = (
-                self.model.num_timesteps >= self.save_interval
-            )
+            self.model.policy.actor_grad = self.model.num_timesteps >= 98_304
         if self.learning_style in [
             LearningStyle.FICTITIOUS_PLAY,
             LearningStyle.DOUBLE_ORACLE,
