@@ -2,12 +2,12 @@
 
 run_ids=(1 1 1 1)
 team_counts=(64 64 64 64)
-ports=(7200 7200 7200 7200)
+ports=(7200 7201 7202 7203)
 devices=("cuda:1" "cuda:1" "cuda:1" "cuda:1")
 regs=("A" "B" "C" "D")
 
 num_envs=16
-total_steps=$((51 * 98304))  # 983_040 is the number of steps per save during training
+total_steps=$((51 * 98304))  # 98_304 is the number of steps per save during training
 
 start_showdown() {
     local port=$1
