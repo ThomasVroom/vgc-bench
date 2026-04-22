@@ -1,5 +1,5 @@
 """
-Training module for VGC-Bench.
+Fine-tuning module for VGC-Bench.
 
 Implements reinforcement learning training for Pokemon VGC agents using PPO.
 Supports multiple training paradigms including self-play, fictitious play,
@@ -19,8 +19,9 @@ from vgc_bench.src.policy import MaskedActorCriticPolicy
 from vgc_bench.src.utils import LearningStyle, set_global_seed
 
 
-def train(
-    reg: str | None,
+def finetune(
+    reg_source: str,
+    reg_target: str,
     run_id: int,
     num_teams: int | None,
     num_envs: int,
@@ -39,14 +40,15 @@ def train(
     evaluate: bool = True,
 ):
     """
-    Train a Pokemon VGC policy using reinforcement learning.
+    Fine-tune a Pokemon VGC policy using reinforcement learning.
 
     Creates the training environment, initializes PPO with the appropriate
     policy architecture, and runs training with periodic evaluation and
     checkpointing.
 
     Args:
-        reg: VGC regulation letter (e.g. 'g', 'h', 'i'), or None for all.
+        reg_source: VGC regulation letter (e.g. 'g', 'h', 'i').
+        reg_target: VGC regulation letter (e.g. 'g', 'h', 'i').
         run_id: Training run identifier for saving/loading.
         num_teams: Number of teams to train with.
         num_envs: Number of parallel environments.
@@ -77,7 +79,7 @@ def train(
         team_paths = [team1_path, team2_path]
     env = (
         ShowdownEnv.create_env(
-            reg,
+            reg_target,
             run_id,
             num_teams,
             num_envs,
@@ -92,7 +94,7 @@ def train(
         else SubprocVecEnv(
             [
                 lambda: ShowdownEnv.create_env(
-                    reg,
+                    reg_target,
                     run_id,
                     num_teams,
                     num_envs,
@@ -115,10 +117,14 @@ def train(
     ]
     method = "_".join([p for p in method_tags if p is not None])
     method_dir = output_dir / f"saves_{method}"
-    method_dir = method_dir / (f"reg_{reg}" if reg is not None else "reg_all")
+    source_dir = output_dir / f"saves_{method}"
+    method_dir = method_dir / f"reg_{reg_source}_to_{reg_target}"
+    source_dir = source_dir / f"reg_{reg_source}"
     if num_teams is not None:
         method_dir = method_dir / f"{num_teams}_teams"
+        source_dir = source_dir / f"{num_teams}_teams"
     save_dir = method_dir / f"seed{run_id}"
+    source_dir = source_dir / f"seed{run_id}"
     ppo = PPO(
         MaskedActorCriticPolicy,
         env,
@@ -136,25 +142,25 @@ def train(
         device=device,
     )
     num_saved_timesteps = 0
-    if save_dir.exists() and any(save_dir.iterdir()):
+    if source_dir.exists() and any(source_dir.iterdir()):
         saved_policy_timesteps = [
-            int(file.stem) for file in save_dir.iterdir() if int(file.stem) >= 0
+            int(file.stem) for file in source_dir.iterdir() if int(file.stem) >= 0
         ]
         if saved_policy_timesteps:
             num_saved_timesteps = max(saved_policy_timesteps)
             ppo.set_parameters(
-                str(save_dir / f"{num_saved_timesteps}.zip"), device=ppo.device
+                str(source_dir / f"{num_saved_timesteps}.zip"), device=ppo.device
             )
             if num_saved_timesteps < save_interval:
                 num_saved_timesteps = 0
             ppo.num_timesteps = num_saved_timesteps
-            print(f"starting from {str(save_dir / f'{num_saved_timesteps}.zip')}")
+            print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
     ppo.learn(
         total_steps - num_saved_timesteps,
         callback=Callback(
             run_id,
             num_teams,
-            reg,
+            reg_target,
             save_dir,
             num_eval_workers,
             log_level,
@@ -230,10 +236,14 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
-        "--reg",
+        "--reg_source",
         type=str,
-        default=None,
-        help="VGC regulation to train on (e.g. G). Omit to train on all regulations",
+        help="VGC regulation to start from (e.g. G).",
+    )
+    parser.add_argument(
+        "--reg_target",
+        type=str,
+        help="VGC regulation to train on (e.g. G).",
     )
     parser.add_argument(
         "--run_id", type=int, default=1, help="run ID for the training session"
@@ -276,7 +286,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     set_global_seed(args.run_id)
-    reg = args.reg.lower() if args.reg is not None else None
+    reg_source = args.reg_source.lower()
+    reg_target = args.reg_target.lower()
     assert (
         int(args.exploiter)
         + int(args.self_play)
@@ -301,8 +312,9 @@ if __name__ == "__main__":
         assert args.results_suffix != "", (
             "--results_suffix is required when using --team1 and --team2"
         )
-    train(
-        reg,
+    finetune(
+        reg_source,
+        reg_target,
         args.run_id,
         args.num_teams,
         args.num_envs,

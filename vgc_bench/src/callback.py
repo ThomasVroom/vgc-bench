@@ -56,6 +56,7 @@ class Callback(BaseCallback):
         run_id: int,
         num_teams: int | None,
         reg: str | None,
+        save_dir: Path,
         num_eval_workers: int,
         log_level: int,
         port: int,
@@ -76,6 +77,7 @@ class Callback(BaseCallback):
             run_id: Training run identifier.
             num_teams: Number of teams to use.
             reg: VGC regulation letter (e.g. 'g', 'h', 'i'), or None for all.
+            save_dir: Path to save checkpoints.
             num_eval_workers: Number of parallel evaluation workers.
             log_level: Logging verbosity for Showdown clients.
             port: Port for the Pokemon Showdown server.
@@ -109,11 +111,7 @@ class Callback(BaseCallback):
             battle_format = format_map[get_available_regs()[0]]
         else:
             battle_format = format_map[reg]
-        method_dir = output_dir / f"saves_{method}"
-        method_dir = method_dir / (f"reg_{reg}" if reg is not None else "reg_all")
-        if num_teams is not None:
-            method_dir = method_dir / f"{num_teams}_teams"
-        self.save_dir = method_dir / f"seed{run_id}"
+        self.save_dir = save_dir
         self.save_label = str(self.save_dir.relative_to(output_dir / f"saves_{method}"))
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.save_dir.mkdir(parents=True, exist_ok=True)
