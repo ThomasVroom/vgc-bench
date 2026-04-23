@@ -6,6 +6,7 @@ baseline players, computing payoff matrices, and analyzing team statistics
 using Alpha-Rank for meta-game analysis.
 """
 
+import time
 import argparse
 import asyncio
 import random
@@ -422,12 +423,14 @@ def print_team_statistics(reg: str, num_teams: int):
             f"max = {max(sim_scores)}",
         )
 
+
 def cross_eval_regs_baseline(
     regs: list[str],
     checkpoints: list[int],
     method: str,
     port: int,
     dev: str,
+    force_mirror: bool,
     num_teams: int,
     num_battles: int,
     in_dist: bool,
@@ -443,23 +446,48 @@ def cross_eval_regs_baseline(
         method: Name of the method used.
         port: Port for the Pokemon Showdown server.
         dev: CUDA device for model inference.
-        num_teams: Number of different teams to evaluate with (all mirror matches).
-        num_battles: Number of times to repeat each matchup.
+        force_mirror: if True, force a mirror matchup for every battle.
+        num_teams: Size of the team pool (None for all possible teams).
+        num_battles: Number of battles per cell.
+        in_dist: If False, uses teams not seen by the agents during training.
+    """
+    paths = [f"results/saves_{method}/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip" for i, source_reg in enumerate(regs)]
+    cross_eval_regs(regs, paths, port, dev, force_mirror, num_teams, num_battles, in_dist)
+
+
+def cross_eval_regs(
+    regs: list[str],
+    checkpoints: list[str],
+    port: int,
+    dev: str,
+    force_mirror: bool,
+    num_teams: int,
+    num_battles: int,
+    in_dist: bool,
+):
+    """
+    Cross-evaluate agents trained on different regulations.
+
+    Tests how much agents trained on a certain regulation can generalize to different regulations.
+
+    Args:
+        regs: List of regulations.
+        checkpoints: List of paths to checkpoints.
+        port: Port for the Pokemon Showdown server.
+        dev: CUDA device for model inference.
+        force_mirror: if True, force a mirror matchup for every battle.
+        num_teams: Size of the team pool (None for all possible teams).
+        num_battles: Number of battles per cell.
         in_dist: If False, uses teams not seen by the agents during training.
     """
     device = torch.device(dev)
     for target_reg in regs:
-        team_selector = NonRepeatingTeamBuilder(
-            1,
-            64,
-            target_reg,
-            take_from_end=(not in_dist),
-        )
         agents = []
-        for i, source_reg in enumerate(regs):
+        for path in checkpoints:
+            path_split = path.split('/')
             agent = BatchPolicyPlayer(
                 account_configuration=AccountConfiguration.generate(
-                    f"{target_reg}/{method}/reg_{source_reg}"
+                    path_split[2]+'_'+path_split[-1][:-4] # e.g. reg_a_5013504
                 ),
                 server_configuration=ServerConfiguration(
                     f"ws://localhost:{port}/showdown/websocket",
@@ -470,26 +498,38 @@ def cross_eval_regs_baseline(
                 max_concurrent_battles=10,
                 accept_open_team_sheet=True,
                 open_timeout=None,
-                team=StationaryTeamBuilder("")
+                team=RandomTeamBuilder(1, num_teams, target_reg, take_from_end=(not in_dist))
             )
-            path = f"results/saves_{method}/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip"
             agent.set_policy(path, device)
             agents += [agent]
-        avg_payoff_matrix = np.zeros((len(regs), len(regs)))
-        for run in range(num_teams):
-            team = team_selector.yield_team()
-            for i in range(len(agents)):
-                agents[i].update_team(StationaryTeamBuilder(team))
-            print(f"Starting cross-eval {run} on reg_{target_reg}... ({torch.cuda.memory_allocated(device)} VRAM)")
+        if force_mirror: # only mirror matchups
+            mirror_selector = NonRepeatingTeamBuilder(1, num_teams, target_reg, take_from_end=(not in_dist))
+            num_runs = num_battles // 10
+            assert num_runs <= len(mirror_selector._team_paths), "more runs than teams available"
+            avg_payoff_matrix = np.zeros((len(checkpoints), len(checkpoints)))
+            for run in range(num_runs):
+                team = mirror_selector.yield_team()
+                for agent in agents:
+                    agent.update_team(StationaryTeamBuilder(team))
+                print(f"Starting cross-eval {run} on reg_{target_reg}... ({torch.cuda.memory_allocated(device)} VRAM)") # VRAM leak!
+                results = asyncio.run(cross_evaluate(agents, 10))
+                payoff_matrix = np.array(
+                    [
+                        [r if r is not None else np.nan for r in result.values()]
+                        for result in results.values()
+                    ]
+                )
+                avg_payoff_matrix += payoff_matrix / num_runs
+        else: # randomly sample team every battle (no guaranteed reverse!)
+            print(f"Starting cross-eval on reg_{target_reg}... ({torch.cuda.memory_allocated(device)} VRAM)") # VRAM leak!
             results = asyncio.run(cross_evaluate(agents, num_battles))
-            payoff_matrix = np.array(
+            avg_payoff_matrix = np.array(
                 [
                     [r if r is not None else np.nan for r in result.values()]
                     for result in results.values()
                 ]
             )
-            avg_payoff_matrix += payoff_matrix / num_teams
-        print(f"Cross evaluation results on reg_{target_reg}:")
+        print(f"Cross evaluation results on reg_{target_reg}: ({time.localtime().tm_hour}:{time.localtime().tm_min})")
         print(avg_payoff_matrix.round(decimals=3)) # results are relative to row player!
 
 # -----------------------------------------------------------------
@@ -506,23 +546,26 @@ if __name__ == "__main__":
         "--device", type=str, default="cuda:0", help="CUDA device to use for eval"
     )
     parser.add_argument(
-        "--num_teams", type=int, default=10, help="Number of matchups to evaluate on"
+        "--force_mirror", action="store_true", default=False, help="Only evaluate on mirror matchups"
     )
     parser.add_argument(
-        "--num_battles", type=int, default=10, help="Number of battles for each matchup"
+        "--num_teams", type=int, default=64, help="Size of the team pool (None for all possible teams)"
     )
     parser.add_argument(
-        "--in_dist", action="store_true", default=False, help="Uses teams seen by one of the agents during training"
+        "--num_battles", type=int, default=10, help="Number of battles per cell"
+    )
+    parser.add_argument(
+        "--in_dist", action="store_true", default=False, help="Uses teams seen during training"
     )
     args = parser.parse_args()
 
     checkpoints = {
-        'a':5013504, 'b':5013504, 'c':5013504, 'd':5013504, #'e':5013504, (broken)
+        'a':5013504, 'b':5013504, 'c':5013504, 'd':5013504, 'e':5013504,
         'f':5013504, 'g':5013504, 'h':5013504, 'i':5013504, 'j':5013504
     }
     print(
-        "Starting cross eval with args:", checkpoints,
-        args.method, args.port, args.device, args.num_teams, args.num_battles, args.in_dist
+        "Starting cross eval with args:", checkpoints, args.method, args.port, args.device,
+        args.force_mirror, args.num_teams, args.num_battles, args.in_dist
     )
     cross_eval_regs_baseline(
         [k for k in checkpoints.keys()],
@@ -530,7 +573,22 @@ if __name__ == "__main__":
         args.method.lower(),
         args.port,
         args.device,
+        args.force_mirror,
         args.num_teams,
         args.num_battles,
         args.in_dist
     )
+    # cross_eval_regs(
+    #     ['a', 'b'],
+    #     [
+    #         "results/saves_sp/reg_a/64_teams/seed1/5013504.zip",
+    #         "results/saves_sp/reg_a_to_b/64_teams/seed1/10027008.zip",
+    #         "results/saves_sp/reg_b/64_teams/seed1/5013504.zip"
+    #     ],
+    #     args.port,
+    #     args.device,
+    #     args.force_mirror,
+    #     args.num_teams,
+    #     args.num_battles,
+    #     args.in_dist
+    # )
