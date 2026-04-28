@@ -1,14 +1,13 @@
 #!/bin/bash
 
-run_ids=(1 1 1 1 1)
-team_counts=(64 64 64 64 64)
-ports=(7200 7201 7202 7203 7204)
-devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
-regs_source=("A" "A" "A" "C" "F")
-regs_target=("C" "F" "I" "F" "I")
+run_ids=(1 1 1 1 1 1 1 1)
+team_counts=(64 64 64 64 64 64 64 64)
+ports=(7200 7200 7200 7200 7200 7200 7200 7200)
+devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
+regs_source=("a_to_b" "a_to_b_to_c" "a_to_b_to_c_to_d" "a_to_b_to_c_to_d_to_e" "a_to_b_to_c_to_d_to_e_to_f" "a_to_b_to_c_to_d_to_e_to_f_to_g" "a_to_b_to_c_to_d_to_e_to_f_to_g_to_h" "a_to_b_to_c_to_d_to_e_to_f_to_g_to_h_to_i")
+regs_target=("c" "d" "e" "f" "g" "h" "i" "j")
 
 num_envs=16
-total_steps=$((2 * 51 * 98304))  # 98_304 is the number of steps per save during training
 
 start_showdown() {
     local port=$1
@@ -27,12 +26,13 @@ train() {
     local device="${devices[$i]}"
     local reg_source="${regs_source[$i]}"
     local reg_target="${regs_target[$i]}"
+    local total_steps=$(((3 + $i) * 51 * 98304))
 
     echo "Starting Showdown server for fine-tune process $i..."
     showdown_pid=$(start_showdown $port)
     sleep 5
     echo "Starting fine-tune process $i..."
-    python3.13 -m vgc_bench.finetune \
+    python3.13 -u -m vgc_bench.finetune \
         --run_id $run_id \
         --num_teams $num_teams \
         --num_envs $num_envs \
