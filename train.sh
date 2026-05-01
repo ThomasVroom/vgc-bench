@@ -1,10 +1,10 @@
 #!/bin/bash
 
-run_ids=(1 1 1 1)
-team_counts=(64 64 64 64)
-ports=(7200 7201 7202 7203)
-devices=("cuda:1" "cuda:1" "cuda:1" "cuda:1")
-regs=("A" "B" "C" "D")
+run_ids=(2 2 2 2 2 2 2 2 2 2)
+team_counts=(64 64 64 64 64 64 64 64 64 64)
+ports=(7200 7200 7200 7200 7200 7200 7200 7200 7200 7200)
+devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
+regs=("A" "B" "C" "D" "E" "F" "G" "H" "I" "J")
 
 num_envs=16
 total_steps=$((51 * 98304))  # 98_304 is the number of steps per save during training
