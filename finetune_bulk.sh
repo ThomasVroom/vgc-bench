@@ -1,11 +1,11 @@
 #!/bin/bash
 
-run_ids=(1 1 1 1 1 1 1 1)
-team_counts=(64 64 64 64 64 64 64 64)
-ports=(7200 7200 7200 7200 7200 7200 7200 7200)
-devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
-regs_source=("a_to_b" "a_to_b_to_c" "a_to_b_to_c_to_d" "a_to_b_to_c_to_d_to_e" "a_to_b_to_c_to_d_to_e_to_f" "a_to_b_to_c_to_d_to_e_to_f_to_g" "a_to_b_to_c_to_d_to_e_to_f_to_g_to_h" "a_to_b_to_c_to_d_to_e_to_f_to_g_to_h_to_i")
-regs_target=("c" "d" "e" "f" "g" "h" "i" "j")
+run_ids=(2 2 2 2 2 2 2 2 2)
+team_counts=(64 64 64 64 64 64 64 64 64)
+ports=(7200 7200 7200 7200 7200 7200 7200 7200 7200)
+devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
+regs_source=("a" "a_to_b" "a_to_b_to_c" "a_to_b_to_c_to_d" "a_to_b_to_c_to_d_to_e" "a_to_b_to_c_to_d_to_e_to_f" "a_to_b_to_c_to_d_to_e_to_f_to_g" "a_to_b_to_c_to_d_to_e_to_f_to_g_to_h" "a_to_b_to_c_to_d_to_e_to_f_to_g_to_h_to_i")
+regs_target=("b" "c" "d" "e" "f" "g" "h" "i" "j")
 
 num_envs=16
 
@@ -26,7 +26,7 @@ train() {
     local device="${devices[$i]}"
     local reg_source="${regs_source[$i]}"
     local reg_target="${regs_target[$i]}"
-    local total_steps=$(((3 + $i) * 51 * 98304))
+    local total_steps=$(((2 + $i) * 51 * 98304))
 
     echo "Starting Showdown server for fine-tune process $i..."
     showdown_pid=$(start_showdown $port)
