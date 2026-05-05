@@ -428,6 +428,7 @@ def cross_eval_regs_baseline(
     regs: list[str],
     checkpoints: list[int],
     method: str,
+    run_id: int,
     port: int,
     dev: str,
     force_mirror: bool,
@@ -444,6 +445,7 @@ def cross_eval_regs_baseline(
         regs: List of regulations.
         checkpoints: List of checkpoints for each reg.
         method: Name of the method used.
+        run_id: Seed of the teambuilder.
         port: Port for the Pokemon Showdown server.
         dev: CUDA device for model inference.
         force_mirror: if True, force a mirror matchup for every battle.
@@ -451,13 +453,14 @@ def cross_eval_regs_baseline(
         num_battles: Number of battles per cell.
         in_dist: If False, uses teams not seen by the agents during training.
     """
-    paths = [f"results/saves_{method}/reg_{source_reg}/64_teams/seed1/{checkpoints[i]}.zip" for i, source_reg in enumerate(regs)]
-    cross_eval_regs(regs, paths, port, dev, force_mirror, num_teams, num_battles, in_dist)
+    paths = [f"results/saves_{method}/reg_{source_reg}/64_teams/seed{run_id}/{checkpoints[i]}.zip" for i, source_reg in enumerate(regs)]
+    cross_eval_regs(regs, paths, run_id, port, dev, force_mirror, num_teams, num_battles, in_dist)
 
 
 def cross_eval_regs(
     regs: list[str],
     checkpoints: list[str],
+    run_id: int,
     port: int,
     dev: str,
     force_mirror: bool,
@@ -473,6 +476,7 @@ def cross_eval_regs(
     Args:
         regs: List of regulations.
         checkpoints: List of paths to checkpoints.
+        run_id: Seed of the teambuilder.
         port: Port for the Pokemon Showdown server.
         dev: CUDA device for model inference.
         force_mirror: if True, force a mirror matchup for every battle.
@@ -487,7 +491,7 @@ def cross_eval_regs(
             path_split = path.split('/')
             agent = BatchPolicyPlayer(
                 account_configuration=AccountConfiguration.generate(
-                    path_split[2]+'_'+path_split[-1][:-4] # e.g. reg_a_5013504
+                    path_split[2][:5]+'_'+path_split[-1][:-4] # e.g. reg_a_5013504
                 ),
                 server_configuration=ServerConfiguration(
                     f"ws://localhost:{port}/showdown/websocket",
@@ -498,12 +502,12 @@ def cross_eval_regs(
                 max_concurrent_battles=10,
                 accept_open_team_sheet=True,
                 open_timeout=None,
-                team=RandomTeamBuilder(1, num_teams, target_reg, take_from_end=(not in_dist))
+                team=RandomTeamBuilder(run_id, num_teams, target_reg, take_from_end=(not in_dist))
             )
             agent.set_policy(path, device)
             agents += [agent]
         if force_mirror: # only mirror matchups
-            mirror_selector = NonRepeatingTeamBuilder(1, num_teams, target_reg, take_from_end=(not in_dist))
+            mirror_selector = NonRepeatingTeamBuilder(run_id, num_teams, target_reg, take_from_end=(not in_dist))
             num_runs = num_battles // 10
             assert num_runs <= len(mirror_selector._team_paths), "more runs than teams available"
             avg_payoff_matrix = np.zeros((len(checkpoints), len(checkpoints)))
@@ -540,6 +544,9 @@ if __name__ == "__main__":
         "--method", type=str, default="SP", help="Name of the method used"
     )
     parser.add_argument(
+        "--run_id", type=int, default=1, help="Seed of the teambuilder"
+    )
+    parser.add_argument(
         "--port", type=int, default=8000, help="Port to run showdown server on"
     )
     parser.add_argument(
@@ -564,13 +571,14 @@ if __name__ == "__main__":
         'f':5013504, 'g':5013504, 'h':5013504, 'i':5013504, 'j':5013504
     }
     print(
-        "Starting cross eval with args:", checkpoints, args.method, args.port, args.device,
+        "Starting cross eval with args:", checkpoints, args.method, args.run_id, args.port, args.device,
         args.force_mirror, args.num_teams, args.num_battles, args.in_dist
     )
     cross_eval_regs_baseline(
         [k for k in checkpoints.keys()],
         [v for v in checkpoints.values()],
         args.method.lower(),
+        args.run_id,
         args.port,
         args.device,
         args.force_mirror,
@@ -585,6 +593,7 @@ if __name__ == "__main__":
     #         "results/saves_sp/reg_a_to_b/64_teams/seed1/10027008.zip",
     #         "results/saves_sp/reg_b/64_teams/seed1/5013504.zip"
     #     ],
+    #     args.run_id,
     #     args.port,
     #     args.device,
     #     args.force_mirror,
