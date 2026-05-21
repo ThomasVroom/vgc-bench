@@ -7,7 +7,9 @@ device="cuda:0"
 LOGFILE="debug${PORT}.log"
 
 source_reg="A"
-target_reg="B"
+source_suffix=""
+target_reg="C"
+target_suffix="temp"
 num_envs=16
 total_steps=$((2 * 51 * 98304))
 
@@ -40,9 +42,13 @@ python3.13 -u -m vgc_bench.finetune \
     --port $PORT \
     --device $device \
     --self_play \
+    --new_heads \
+    --freeze_extractor \
     --reg_source $source_reg \
     --reg_target $target_reg \
     --total_steps "$total_steps" \
+    --source_results_suffix $source_suffix \
+    --target_results_suffix $target_suffix \
     > "$LOGFILE" 2>&1
 
 EXIT_STATUS=$?

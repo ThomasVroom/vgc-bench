@@ -131,13 +131,10 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
         """Extract features and compute action/value logits."""
         actor_context = torch.enable_grad() if actor_grad else torch.no_grad()
         features = self.extract_features(obs)
-        if self.share_features_extractor:
-            latent_pi, latent_vf = self.mlp_extractor(features)
-        else:
-            pi_features, vf_features = features
-            with actor_context:
-                latent_pi = self.mlp_extractor.forward_actor(pi_features)
-            latent_vf = self.mlp_extractor.forward_critic(vf_features)
+        pi_features, vf_features = features
+        with actor_context:
+            latent_pi = self.mlp_extractor.forward_actor(pi_features)
+        latent_vf = self.mlp_extractor.forward_critic(vf_features)
         with actor_context:
             action_logits = self.action_net(latent_pi)
         value_logits = self.value_net(latent_vf)

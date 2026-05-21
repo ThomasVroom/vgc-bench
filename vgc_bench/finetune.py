@@ -33,9 +33,12 @@ def finetune(
     behavior_clone: bool,
     allow_mirror_match: bool,
     choose_on_teampreview: bool,
+    new_heads: bool,
+    freeze_feature_extractor: bool,
     team1: str | None,
     team2: str | None,
-    results_suffix: str,
+    source_results_suffix: str,
+    target_results_suffix: str,
     total_steps: int,
     evaluate: bool = True,
 ):
@@ -60,20 +63,25 @@ def finetune(
         behavior_clone: Whether to initialize from a BC-pretrained policy.
         allow_mirror_match: Whether to allow same-team matchups.
         choose_on_teampreview: Whether policy makes teampreview decisions.
+        new_heads: Whether to create new PPO heads or keep existing ones.
+        freeze_feature_extractor: Whether to freeze the feature extractor weights.
         team1: Optional team string for matchup solving (requires team2).
         team2: Optional team string for matchup solving (requires team1).
-        results_suffix: Suffix appended to results<run_id> for output paths.
+        source_results_suffix: Suffix appended to results<run_id> for input paths.
+        target_results_suffix: Suffix appended to results<run_id> for output paths.
         total_steps: Total training timesteps. Defaults to 1000 * save_interval.
         evaluate: Whether to run evaluations and save checkpoints.
     """
     save_interval = 98_304
-    suffix = f"_{results_suffix}" if results_suffix else ""
-    output_dir = Path(f"results{suffix}")
+    source_suffix = f"_{source_results_suffix}" if source_results_suffix else ""
+    target_suffix = f"_{target_results_suffix}" if target_results_suffix else ""
+    input_dir = Path(f"results{source_suffix}")
+    output_dir = Path(f"results{target_suffix}")
     output_dir.mkdir(exist_ok=True)
     team_paths = None
     if team1 and team2:
-        team1_path = output_dir / "team1.txt"
-        team2_path = output_dir / "team2.txt"
+        team1_path = input_dir / "team1.txt"
+        team2_path = input_dir / "team2.txt"
         team1_path.write_text(team1[1:])
         team2_path.write_text(team2[1:])
         team_paths = [team1_path, team2_path]
@@ -117,7 +125,7 @@ def finetune(
     ]
     method = "_".join([p for p in method_tags if p is not None])
     method_dir = output_dir / f"saves_{method}"
-    source_dir = output_dir / f"saves_{method}"
+    source_dir = input_dir / f"saves_{method}"
     method_dir = method_dir / f"reg_{reg_source}_to_{reg_target}"
     source_dir = source_dir / f"reg_{reg_source}"
     if num_teams is not None:
@@ -155,6 +163,18 @@ def finetune(
                 num_saved_timesteps = 0
             ppo.num_timesteps = num_saved_timesteps
             print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
+    if new_heads: # reset action_net and value_net
+        def reset_module(module):
+            if hasattr(module, "reset_parameters"):
+                module.reset_parameters()
+        ppo.policy.action_net.apply(reset_module)
+        ppo.policy.value_net.apply(reset_module)
+    if freeze_feature_extractor: # don't update the feature extractor weights
+        for p in ppo.policy.features_extractor.parameters():
+            p.requires_grad = False
+    ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
+        filter(lambda p: p.requires_grad, ppo.policy.parameters()), lr=1e-5, **{"eps": 1e-5} # type: ignore[call-arg]
+    )
     ppo.learn(
         total_steps - num_saved_timesteps,
         callback=Callback(
@@ -171,7 +191,7 @@ def finetune(
             choose_on_teampreview,
             save_interval,
             team_paths,
-            results_suffix,
+            target_results_suffix,
             total_steps,
             evaluate,
         ),
@@ -236,6 +256,16 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--new_heads",
+        action="store_true",
+        help="Create new PPO action- and value-network heads",
+    )
+    parser.add_argument(
+        "--freeze_extractor",
+        action="store_true",
+        help="Freeze the feature extractor weights",
+    )
+    parser.add_argument(
         "--reg_source",
         type=str,
         help="VGC regulation to start from (e.g. G).",
@@ -255,7 +285,13 @@ if __name__ == "__main__":
         "--team2", type=str, default="", help="team 2 string for matchup solving"
     )
     parser.add_argument(
-        "--results_suffix",
+        "--source_results_suffix",
+        type=str,
+        default="",
+        help="suffix appended to results<run_id> for input paths",
+    )
+    parser.add_argument(
+        "--target_results_suffix",
         type=str,
         default="",
         help="suffix appended to results<run_id> for output paths",
@@ -326,8 +362,11 @@ if __name__ == "__main__":
         args.behavior_clone,
         not args.no_mirror_match,
         not args.no_teampreview,
+        args.new_heads,
+        args.freeze_extractor,
         args.team1 or None,
         args.team2 or None,
-        args.results_suffix,
+        args.source_results_suffix,
+        args.target_results_suffix,
         args.total_steps,
     )
