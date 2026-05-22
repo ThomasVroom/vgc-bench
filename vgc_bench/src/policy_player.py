@@ -37,6 +37,7 @@ from poke_env.environment import DoublesEnv
 from poke_env.player import BattleOrder, DefaultBattleOrder, Player
 from stable_baselines3 import PPO
 from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.save_util import load_from_zip_file
 
 from vgc_bench.src.policy import MaskedActorCriticPolicy
 from vgc_bench.src.teams import RandomTeamBuilder
@@ -195,7 +196,19 @@ class PolicyPlayer(Player):
             device: PyTorch device for model placement.
         """
         if self.policy is None:
-            self.policy = PPO.load(policy_file, device=device).policy
+            try:
+                self.policy = PPO.load(policy_file, device=device).policy
+            except ValueError: # parameter groups don't match -> recreate policy from data
+                data, params, _ = load_from_zip_file(policy_file, device=device)
+                assert data, "no data found in file"
+                # initialize new policy
+                self.policy = MaskedActorCriticPolicy(
+                    observation_space=data["observation_space"],
+                    action_space=data["action_space"],
+                    lr_schedule=data["learning_rate"],
+                    **data["policy_kwargs"]
+                ).to(device)
+                self.policy.load_state_dict(params["policy"]) # type: ignore[misc]
         else:
             # Bypass SB3's leaky set_parameters - load state dict directly from zip
             with zipfile.ZipFile(policy_file, "r") as zf:

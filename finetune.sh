@@ -47,8 +47,8 @@ python3.13 -u -m vgc_bench.finetune \
     --reg_source $source_reg \
     --reg_target $target_reg \
     --total_steps "$total_steps" \
-    --source_results_suffix $source_suffix \
-    --target_results_suffix $target_suffix \
+    --source_results_suffix "$source_suffix" \
+    --target_results_suffix "$target_suffix" \
     > "$LOGFILE" 2>&1
 
 EXIT_STATUS=$?

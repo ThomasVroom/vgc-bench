@@ -187,6 +187,14 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
         )
         return torch.cat([mask[:, :act_len], updated_half], dim=1)
 
+    @staticmethod
+    def freeze(m: nn.Module):
+        for s in m.modules():
+            if isinstance(s, nn.Embedding):
+                s.max_norm = None
+        m.requires_grad_(False)
+        m.eval()
+
 
 class AttentionExtractor(BaseFeaturesExtractor):
     """

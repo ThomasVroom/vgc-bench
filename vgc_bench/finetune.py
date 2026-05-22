@@ -170,8 +170,8 @@ def finetune(
         ppo.policy.action_net.apply(reset_module)
         ppo.policy.value_net.apply(reset_module)
     if freeze_feature_extractor: # don't update the feature extractor weights
-        for p in ppo.policy.features_extractor.parameters():
-            p.requires_grad = False
+        MaskedActorCriticPolicy.freeze(ppo.policy.features_extractor)
+        MaskedActorCriticPolicy.freeze(ppo.policy.vf_features_extractor)
     ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
         filter(lambda p: p.requires_grad, ppo.policy.parameters()), lr=1e-5, **{"eps": 1e-5} # type: ignore[call-arg]
     )
