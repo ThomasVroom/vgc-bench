@@ -1,6 +1,6 @@
 #!/bin/bash
 
-run_ids=(2 2 2 2 2 2 2 2 2 2)
+run_ids=(3 3 3 3 3 3 3 3 3 3)
 team_counts=(64 64 64 64 64 64 64 64 64 64)
 ports=(7200 7200 7200 7200 7200 7200 7200 7200 7200 7200)
 devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
