@@ -491,7 +491,7 @@ def cross_eval_regs(
             path_split = path.split('/')
             agent = BatchPolicyPlayer(
                 account_configuration=AccountConfiguration.generate(
-                    path_split[2][:5]+'_'+path_split[-1][:-4] # e.g. reg_a_5013504
+                    path_split[2 if path_split[2].startswith("reg") else 3][:5]+'_'+path_split[-1][:-4] # e.g. reg_a_5013504
                 ),
                 server_configuration=ServerConfiguration(
                     f"ws://localhost:{port}/showdown/websocket",
@@ -553,7 +553,7 @@ if __name__ == "__main__":
         "--device", type=str, default="cuda:0", help="CUDA device to use for eval"
     )
     parser.add_argument(
-        "--force_mirror", action="store_true", default=False, help="Only evaluate on mirror matchups"
+        "--force_mirror", action="store_true", help="Only evaluate on mirror matchups"
     )
     parser.add_argument(
         "--num_teams", type=int, default=64, help="Size of the team pool (None for all possible teams)"
@@ -562,7 +562,7 @@ if __name__ == "__main__":
         "--num_battles", type=int, default=10, help="Number of battles per cell"
     )
     parser.add_argument(
-        "--in_dist", action="store_true", default=False, help="Uses teams seen during training"
+        "--in_dist", action="store_true", help="Uses teams seen during training"
     )
     args = parser.parse_args()
 

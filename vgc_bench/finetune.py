@@ -16,7 +16,7 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 from vgc_bench.src.callback import Callback
 from vgc_bench.src.env import ShowdownEnv
 from vgc_bench.src.policy import MaskedActorCriticPolicy
-from vgc_bench.src.utils import LearningStyle, set_global_seed
+from vgc_bench.src.utils import LearningStyle, set_global_seed, load_policy_from_zip
 
 
 def finetune(
@@ -34,12 +34,12 @@ def finetune(
     allow_mirror_match: bool,
     choose_on_teampreview: bool,
     new_heads: bool,
-    freeze_feature_extractor: bool,
     team1: str | None,
     team2: str | None,
     source_results_suffix: str,
     target_results_suffix: str,
     total_steps: int,
+    columns: int = 0,
     evaluate: bool = True,
 ):
     """
@@ -64,12 +64,12 @@ def finetune(
         allow_mirror_match: Whether to allow same-team matchups.
         choose_on_teampreview: Whether policy makes teampreview decisions.
         new_heads: Whether to create new PPO heads or keep existing ones.
-        freeze_feature_extractor: Whether to freeze the feature extractor weights.
         team1: Optional team string for matchup solving (requires team2).
         team2: Optional team string for matchup solving (requires team1).
         source_results_suffix: Suffix appended to results<run_id> for input paths.
         target_results_suffix: Suffix appended to results<run_id> for output paths.
         total_steps: Total training timesteps. Defaults to 1000 * save_interval.
+        columns: How many columns the input policy has (0 for non-progressive).
         evaluate: Whether to run evaluations and save checkpoints.
     """
     save_interval = 98_304
@@ -126,6 +126,11 @@ def finetune(
     method = "_".join([p for p in method_tags if p is not None])
     method_dir = output_dir / f"saves_{method}"
     source_dir = input_dir / f"saves_{method}"
+    policy_kwargs = {"d_model": 256, "choose_on_teampreview": choose_on_teampreview, "progressive": columns > 0}
+    if policy_kwargs["progressive"]:
+        method_dir = method_dir / f"{columns+1}_columns"
+        source_dir = source_dir / f"{columns}_columns"
+        policy_kwargs["n_columns"] = columns # init with correct number of columns
     method_dir = method_dir / f"reg_{reg_source}_to_{reg_target}"
     source_dir = source_dir / f"reg_{reg_source}"
     if num_teams is not None:
@@ -146,32 +151,27 @@ def finetune(
         gamma=1,
         # ent_coef is set in callback.py based on training progress
         tensorboard_log=str(output_dir / f"logs_{method}"),
-        policy_kwargs={"d_model": 256, "choose_on_teampreview": choose_on_teampreview},
+        policy_kwargs=policy_kwargs,
         device=device,
     )
-    num_saved_timesteps = 0
-    if source_dir.exists() and any(source_dir.iterdir()):
-        saved_policy_timesteps = [
-            int(file.stem) for file in source_dir.iterdir() if int(file.stem) >= 0
-        ]
-        if saved_policy_timesteps:
-            num_saved_timesteps = max(saved_policy_timesteps)
-            ppo.set_parameters(
-                str(source_dir / f"{num_saved_timesteps}.zip"), device=ppo.device
-            )
-            if num_saved_timesteps < save_interval:
-                num_saved_timesteps = 0
-            ppo.num_timesteps = num_saved_timesteps
-            print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
+    assert source_dir.exists() and any(source_dir.iterdir()), f"source dir {source_dir} not found"
+    saved_policy_timesteps = [
+        int(file.stem) for file in source_dir.iterdir() if int(file.stem) >= 0
+    ]
+    num_saved_timesteps = max(saved_policy_timesteps)
+    load_policy_from_zip(ppo.policy, str(source_dir / f"{num_saved_timesteps}.zip"), ppo.device)
+    ppo.num_timesteps = num_saved_timesteps
+    print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
+    if policy_kwargs["progressive"]: # add column to progressive extractor
+        ppo.policy.pi_features_extractor.add_column() # type: ignore
+        ppo.policy.vf_features_extractor.add_column() # type: ignore
+        ppo.policy.to(device)
     if new_heads: # reset action_net and value_net
         def reset_module(module):
             if hasattr(module, "reset_parameters"):
                 module.reset_parameters()
         ppo.policy.action_net.apply(reset_module)
         ppo.policy.value_net.apply(reset_module)
-    if freeze_feature_extractor: # don't update the feature extractor weights
-        MaskedActorCriticPolicy.freeze(ppo.policy.features_extractor)
-        MaskedActorCriticPolicy.freeze(ppo.policy.vf_features_extractor)
     ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
         filter(lambda p: p.requires_grad, ppo.policy.parameters()), lr=1e-5, **{"eps": 1e-5} # type: ignore[call-arg]
     )
@@ -261,11 +261,6 @@ if __name__ == "__main__":
         help="Create new PPO action- and value-network heads",
     )
     parser.add_argument(
-        "--freeze_extractor",
-        action="store_true",
-        help="Freeze the feature extractor weights",
-    )
-    parser.add_argument(
         "--reg_source",
         type=str,
         help="VGC regulation to start from (e.g. G).",
@@ -320,6 +315,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--total_steps", type=int, required=True, help="total training timesteps"
     )
+    parser.add_argument(
+        "--columns", type=int, default=0, help="number of columns in the input policy"
+    )
     args = parser.parse_args()
     set_global_seed(args.run_id)
     reg_source = args.reg_source.lower()
@@ -363,10 +361,10 @@ if __name__ == "__main__":
         not args.no_mirror_match,
         not args.no_teampreview,
         args.new_heads,
-        args.freeze_extractor,
         args.team1 or None,
         args.team2 or None,
         args.source_results_suffix,
         args.target_results_suffix,
         args.total_steps,
+        args.columns,
     )

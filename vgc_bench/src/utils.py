@@ -10,6 +10,9 @@ import json
 import os
 import random
 import re
+import io
+import zipfile
+from pathlib import Path
 from enum import Enum, auto, unique
 
 import numpy as np
@@ -25,6 +28,9 @@ from poke_env.battle import (
     Target,
     Weather,
 )
+from stable_baselines3 import PPO
+from stable_baselines3.common.policies import BasePolicy
+from stable_baselines3.common.save_util import load_from_zip_file
 
 
 @unique
@@ -125,6 +131,49 @@ def get_reg_from_format(fmt: str) -> str:
     m = re.match(r"gen9vgc\d{4}reg([a-j])", fmt)
     assert m is not None, f"not a valid VGC format: {fmt}"
     return m.group(1)
+
+
+def load_policy(policy_class: type, file: str | Path, device: torch.device):
+    """
+    Load a policy from a checkpoint file.
+
+    Args:
+        policy_class: Class to use when creating a new policy.
+        file: Path to the saved PPO checkpoint.
+        device: PyTorch device for model placement.
+    """
+    try:
+        policy = PPO.load(file, device=device).policy
+    except: # parameter groups don't match -> recreate policy from data
+        data, params, _ = load_from_zip_file(file, device=device)
+        assert data and params, "no data found in file"
+
+        # identify correct architecture
+        if "progressive" in data["policy_kwargs"]:
+            if "n_columns" in data["policy_kwargs"]:
+                data["policy_kwargs"]["n_columns"] += 1
+        else:
+            data["policy_kwargs"]["progressive"] = False
+
+        # initialize new policy
+        policy = policy_class(
+            observation_space=data["observation_space"],
+            action_space=data["action_space"],
+            lr_schedule=data["learning_rate"],
+            **data["policy_kwargs"]
+        ).to(device)
+        policy.load_state_dict(params["policy"])
+    return policy
+
+
+def load_policy_from_zip(policy: BasePolicy, file: str | Path, device: torch.device):
+    """Bypass SB3's leaky set_parameters - load state dict directly from zip"""
+    with zipfile.ZipFile(file, "r") as zf:
+        with zf.open("policy.pth") as f:
+            state_dict = torch.load(
+                io.BytesIO(f.read()), map_location=device, weights_only=True
+            )
+    policy.load_state_dict(state_dict)
 
 
 with open("data/abilities.json") as f:

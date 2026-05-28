@@ -32,6 +32,7 @@ def train(
     behavior_clone: bool,
     allow_mirror_match: bool,
     choose_on_teampreview: bool,
+    progressive: bool,
     team1: str | None,
     team2: str | None,
     results_suffix: str,
@@ -58,6 +59,7 @@ def train(
         behavior_clone: Whether to initialize from a BC-pretrained policy.
         allow_mirror_match: Whether to allow same-team matchups.
         choose_on_teampreview: Whether policy makes teampreview decisions.
+        progressive: Whether to use a progressive network architecture.
         team1: Optional team string for matchup solving (requires team2).
         team2: Optional team string for matchup solving (requires team1).
         results_suffix: Suffix appended to results<run_id> for output paths.
@@ -115,6 +117,8 @@ def train(
     ]
     method = "_".join([p for p in method_tags if p is not None])
     method_dir = output_dir / f"saves_{method}"
+    if progressive:
+        method_dir = method_dir / "1_columns"
     method_dir = method_dir / (f"reg_{reg}" if reg is not None else "reg_all")
     if num_teams is not None:
         method_dir = method_dir / f"{num_teams}_teams"
@@ -132,7 +136,7 @@ def train(
         gamma=1,
         # ent_coef is set in callback.py based on training progress
         tensorboard_log=str(output_dir / f"logs_{method}"),
-        policy_kwargs={"d_model": 256, "choose_on_teampreview": choose_on_teampreview},
+        policy_kwargs={"d_model": 256, "choose_on_teampreview": choose_on_teampreview, "progressive": progressive},
         device=device,
     )
     num_saved_timesteps = 0
@@ -230,6 +234,11 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--progressive",
+        action="store_true",
+        help="Use a progressive policy architecture for transfer learning",
+    )
+    parser.add_argument(
         "--reg",
         type=str,
         default=None,
@@ -314,6 +323,7 @@ if __name__ == "__main__":
         args.behavior_clone,
         not args.no_mirror_match,
         not args.no_teampreview,
+        args.progressive,
         args.team1 or None,
         args.team2 or None,
         args.results_suffix,

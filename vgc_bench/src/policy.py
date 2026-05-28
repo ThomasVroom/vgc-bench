@@ -51,7 +51,7 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
     """
 
     def __init__(
-        self, *args: Any, d_model: int, choose_on_teampreview: bool, **kwargs: Any
+        self, *args: Any, d_model: int, choose_on_teampreview: bool, progressive: bool, n_columns: int=1, **kwargs: Any
     ):
         """
         Initialize the masked actor-critic policy.
@@ -59,6 +59,8 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
         Args:
             d_model: Hidden size for policy/value networks and attention extractor.
             choose_on_teampreview: Whether policy controls teampreview.
+            progressive: Whether policy uses a progressive architecture.
+            n_columns: How many columns to use for the progressive architecture.
             *args: Additional arguments for ActorCriticPolicy.
             **kwargs: Additional keyword arguments for ActorCriticPolicy.
         """
@@ -70,8 +72,12 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
             **kwargs,
             net_arch=[],
             activation_fn=torch.nn.ReLU,
-            features_extractor_class=AttentionExtractor,
+            features_extractor_class=ProgressiveAttentionExtractor if progressive else AttentionExtractor,
             features_extractor_kwargs={
+                "d_model": d_model,
+                "choose_on_teampreview": choose_on_teampreview,
+                "n_columns": n_columns,
+            } if progressive else {
                 "d_model": d_model,
                 "choose_on_teampreview": choose_on_teampreview,
             },
@@ -187,14 +193,6 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
         )
         return torch.cat([mask[:, :act_len], updated_half], dim=1)
 
-    @staticmethod
-    def freeze(m: nn.Module):
-        for s in m.modules():
-            if isinstance(s, nn.Embedding):
-                s.max_norm = None
-        m.requires_grad_(False)
-        m.eval()
-
 
 class AttentionExtractor(BaseFeaturesExtractor):
     """
@@ -288,3 +286,201 @@ class AttentionExtractor(BaseFeaturesExtractor):
         cls_token = self.cls_token.expand(batch_size, -1, -1)
         tokens = torch.cat([cls_token, pokemon_tokens], dim=1)
         return self.pokemon_encoder(tokens)[:, 0, :]
+
+
+class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
+    """
+    Attention-based feature extractor for Pokemon battle observations.
+    Adapted to a progressive architecture for transfer learning.
+
+    Processes Pokemon observations using embeddings for abilities, items, and
+    moves, then applies transformer attention to produce a fixed-size feature
+    vector.
+    """
+
+    def __init__(
+        self, observation_space: Space[Any], d_model: int, choose_on_teampreview: bool, n_columns: int=1
+    ):
+        """
+        Initialize the attention-based feature extractor.
+
+        Args:
+            observation_space: Gymnasium observation space specification.
+            d_model: Hidden size for token projection and transformer layers.
+            choose_on_teampreview: Whether policy controls teampreview decisions.
+        """
+        super().__init__(observation_space, features_dim=d_model)
+        self.d_model = d_model
+        self.choose_on_teampreview = choose_on_teampreview
+
+        # initialize columns
+        assert n_columns > 0
+        self.column_head = self.Column(d_model)
+        for _ in range(n_columns - 1):
+            self.add_column()
+
+    def forward(self, obs_dict: dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        Extract features from battle observation.
+
+        Embeds Pokemon attributes and applies transformer attention across all
+        12 Pokemon (6 per side).
+
+        Args:
+            x: Dict with an ``"observation"`` key containing a tensor of
+                shape (batch, 12 * chunk_obs_len).
+
+        Returns:
+            Feature tensor of shape (batch, d_model).
+        """
+        return self.column_head(obs_dict)[0]
+
+    def add_column(self):
+        """
+        Add a new column.
+        """
+        self.column_head.freeze()
+        self.column_head = self.Column(self.d_model, self.column_head)
+
+
+    class Column(nn.Module):
+        """
+        A single column of the ProgressiveAttentionExtractor.
+
+        Class Attributes:
+            embed_len: Dimension of embedding vectors for abilities/items/moves.
+            num_heads: Number of attention heads in transformer layers.
+            embed_layers: Number of transformer encoder layers.
+            down_size: Size of the hidden layer in the lateral adapters.
+        """
+
+        embed_len: int = 32
+        num_heads: int = 4
+        embed_layers: int = 3
+        down_size: int = 64
+
+        def __init__(self, d_model: int, prev_column=None):
+            """
+            Initialize a new column.
+
+            Args:
+                d_model: Hidden size for token projection and transformer layers.
+            """
+            super().__init__()
+            self.prev_column = prev_column
+
+            # embeddings -> column-specific
+            self.ability_embed = nn.Embedding(
+                len(abilities), self.embed_len, max_norm=self.embed_len**0.5
+            )
+            self.item_embed = nn.Embedding(
+                len(items), self.embed_len, max_norm=self.embed_len**0.5
+            )
+            self.move_embed = nn.Embedding(
+                len(moves), self.embed_len, max_norm=self.embed_len**0.5
+            )
+
+            # linear layer -> transferable
+            self.pokemon_proj = nn.Linear(chunk_obs_len + 6 * (self.embed_len - 1), d_model)
+            if prev_column:
+                self.pokemon_proj_adapter = nn.Sequential(
+                    nn.Linear(d_model, self.down_size),
+                    nn.ReLU(),
+                    nn.Linear(self.down_size, d_model),
+                )
+                self.pokemon_proj_alpha = nn.Parameter(torch.randn(1))
+
+            # CLS token -> column-specific
+            self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
+
+            # transformer layers -> transferable
+            self.transformer_layers = nn.ModuleList([
+                nn.TransformerEncoderLayer(
+                    d_model=d_model,
+                    nhead=self.num_heads,
+                    dim_feedforward=d_model,
+                    dropout=0,
+                    batch_first=True,
+                    norm_first=True,
+                ) for _ in range(self.embed_layers)
+            ])
+            if prev_column:
+                self.transformer_adapters = nn.ModuleList([
+                    nn.Sequential(
+                        nn.Linear(d_model, self.down_size),
+                        nn.ReLU(),
+                        nn.Linear(self.down_size, d_model),
+                    ) for _ in range(self.embed_layers)
+                ])
+                self.transformer_alphas = nn.Parameter(torch.randn(self.embed_layers))
+
+        def forward(self, obs_dict: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
+            """
+            Extract features from battle observation.
+
+            Embeds Pokemon attributes and applies transformer attention across all
+            12 Pokemon (6 per side).
+
+            Args:
+                x: Dict with an ``"observation"`` key containing a tensor of
+                    shape (batch, 12 * chunk_obs_len).
+
+            Returns:
+                feature_tensor, pokemon_tokens, [transformer_layer1, transformer_layer2, ...]
+            """
+            obs = obs_dict["observation"]
+            batch_size = obs.size(0)
+            pokemon_obs = obs.view(batch_size, 12, -1)
+
+            # embedded observation
+            start = glob_obs_len + side_obs_len
+            pokemon_obs = torch.cat(
+                [
+                    pokemon_obs[:, :, :start],
+                    self.ability_embed(pokemon_obs[:, :, start].long()),
+                    self.item_embed(pokemon_obs[:, :, start + 1].long()),
+                    self.move_embed(pokemon_obs[:, :, start + 2].long()),
+                    self.move_embed(pokemon_obs[:, :, start + 3].long()),
+                    self.move_embed(pokemon_obs[:, :, start + 4].long()),
+                    self.move_embed(pokemon_obs[:, :, start + 5].long()),
+                    pokemon_obs[:, :, start + 6 :],
+                ],
+                dim=-1,
+            )
+            pokemon_tokens = self.pokemon_proj(pokemon_obs)
+
+            # lateral connections to previous column(s)
+            old_tokens, old_outputs = None, None
+            if self.prev_column:
+                with torch.no_grad():
+                    _, old_tokens, old_outputs = self.prev_column(obs_dict)
+                # transfer linear layer
+                pokemon_tokens += self.pokemon_proj_alpha * self.pokemon_proj_adapter(old_tokens)
+
+            # add CLS token
+            cls_token = self.cls_token.expand(batch_size, -1, -1)
+            x = torch.cat([cls_token, pokemon_tokens], dim=1)
+
+            # apply transformer layers of current column
+            transformer_outputs = []
+            for i in range(self.embed_layers):
+                x = self.transformer_layers[i](x)
+                if old_outputs: # transfer one layer at a time
+                    x += self.transformer_alphas[i] * self.transformer_adapters[i](old_outputs[i])
+                transformer_outputs.append(torch.clone(x))
+
+            # return feature tensor and vector for transfer
+            return x[:, 0, :], pokemon_tokens, transformer_outputs
+
+        def freeze(self):
+            """
+            Freeze the column, preventing any of its weights from updating.
+            """
+            # remove max_norm from embeddings
+            self.ability_embed.max_norm = None
+            self.item_embed.max_norm = None
+            self.move_embed.max_norm = None
+
+            # don't update gradients
+            self.requires_grad_(False)
+            self.eval()
