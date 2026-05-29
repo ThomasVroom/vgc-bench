@@ -352,12 +352,14 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             num_heads: Number of attention heads in transformer layers.
             embed_layers: Number of transformer encoder layers.
             down_size: Size of the hidden layer in the lateral adapters.
+            dropout: Dropout rate of the hidden layer in the lateral adapters.
         """
 
         embed_len: int = 32
         num_heads: int = 4
         embed_layers: int = 3
         down_size: int = 64
+        dropout: float = 0.1
 
         def __init__(self, d_model: int, prev_column=None):
             """
@@ -384,6 +386,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             self.pokemon_proj = nn.Linear(chunk_obs_len + 6 * (self.embed_len - 1), d_model)
             if prev_column:
                 self.pokemon_proj_adapter = nn.Sequential(
+                    nn.Dropout(self.dropout),
                     nn.Linear(d_model, self.down_size),
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
@@ -407,6 +410,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             if prev_column:
                 self.transformer_adapters = nn.ModuleList([
                     nn.Sequential(
+                        nn.Dropout(self.dropout),
                         nn.Linear(d_model, self.down_size),
                         nn.ReLU(),
                         nn.Linear(self.down_size, d_model),

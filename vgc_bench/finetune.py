@@ -182,7 +182,7 @@ def finetune(
         ppo.policy.value_net.apply(reset_module)
     ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
         filter(lambda p: p.requires_grad, ppo.policy.parameters()),
-        **{"lr": 1e-5, "eps": 1e-5, "weight_decay": 1e-6 if l2 else 0}
+        **{"lr": 1e-5, "eps": 1e-5, "weight_decay": 1e-6 if l2 else 0, "betas": (0.99, 0.99) if l2 else (0.9, 0.999)}
     )
     ppo.learn(
         total_steps - num_saved_timesteps,

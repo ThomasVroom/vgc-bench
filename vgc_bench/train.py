@@ -144,7 +144,7 @@ def train(
             "choose_on_teampreview": choose_on_teampreview,
             "progressive": progressive,
             "optimizer_class": AdamW if l2 else Adam,
-            "optimizer_kwargs": {"eps": 1e-5, "weight_decay": 1e-6 if l2 else 0}
+            "optimizer_kwargs": {"eps": 1e-5, "weight_decay": 1e-6 if l2 else 0, "betas": (0.99, 0.99) if l2 else (0.9, 0.999)}
         },
         device=device,
     )
