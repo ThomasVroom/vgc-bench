@@ -9,6 +9,7 @@ cloning.
 
 import argparse
 from pathlib import Path
+from torch.optim import Adam, AdamW
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -34,6 +35,7 @@ def finetune(
     allow_mirror_match: bool,
     choose_on_teampreview: bool,
     new_heads: bool,
+    l2: bool,
     team1: str | None,
     team2: str | None,
     source_results_suffix: str,
@@ -64,6 +66,7 @@ def finetune(
         allow_mirror_match: Whether to allow same-team matchups.
         choose_on_teampreview: Whether policy makes teampreview decisions.
         new_heads: Whether to create new PPO heads or keep existing ones.
+        l2: Whether to use L2 regularization with the AdamW optimizer.
         team1: Optional team string for matchup solving (requires team2).
         team2: Optional team string for matchup solving (requires team1).
         source_results_suffix: Suffix appended to results<run_id> for input paths.
@@ -126,7 +129,12 @@ def finetune(
     method = "_".join([p for p in method_tags if p is not None])
     method_dir = output_dir / f"saves_{method}"
     source_dir = input_dir / f"saves_{method}"
-    policy_kwargs = {"d_model": 256, "choose_on_teampreview": choose_on_teampreview, "progressive": columns > 0}
+    policy_kwargs = {
+        "d_model": 256,
+        "choose_on_teampreview": choose_on_teampreview,
+        "progressive": columns > 0,
+        "optimizer_class": AdamW if l2 else Adam
+    }
     if policy_kwargs["progressive"]:
         method_dir = method_dir / f"{columns+1}_columns"
         source_dir = source_dir / f"{columns}_columns"
@@ -173,7 +181,8 @@ def finetune(
         ppo.policy.action_net.apply(reset_module)
         ppo.policy.value_net.apply(reset_module)
     ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
-        filter(lambda p: p.requires_grad, ppo.policy.parameters()), lr=1e-5, **{"eps": 1e-5} # type: ignore[call-arg]
+        filter(lambda p: p.requires_grad, ppo.policy.parameters()),
+        **{"lr": 1e-5, "eps": 1e-5, "weight_decay": 1e-6 if l2 else 0}
     )
     ppo.learn(
         total_steps - num_saved_timesteps,
@@ -259,6 +268,11 @@ if __name__ == "__main__":
         "--new_heads",
         action="store_true",
         help="Create new PPO action- and value-network heads",
+    )
+    parser.add_argument(
+        "--l2",
+        action="store_true",
+        help="Use L2 regularization with the AdamW optimizer",
     )
     parser.add_argument(
         "--reg_source",
@@ -361,6 +375,7 @@ if __name__ == "__main__":
         not args.no_mirror_match,
         not args.no_teampreview,
         args.new_heads,
+        args.l2,
         args.team1 or None,
         args.team2 or None,
         args.source_results_suffix,

@@ -9,6 +9,7 @@ cloning.
 
 import argparse
 from pathlib import Path
+from torch.optim import Adam, AdamW
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -33,6 +34,7 @@ def train(
     allow_mirror_match: bool,
     choose_on_teampreview: bool,
     progressive: bool,
+    l2: bool,
     team1: str | None,
     team2: str | None,
     results_suffix: str,
@@ -60,6 +62,7 @@ def train(
         allow_mirror_match: Whether to allow same-team matchups.
         choose_on_teampreview: Whether policy makes teampreview decisions.
         progressive: Whether to use a progressive network architecture.
+        l2: Whether to use L2 regularization with the AdamW optimizer.
         team1: Optional team string for matchup solving (requires team2).
         team2: Optional team string for matchup solving (requires team1).
         results_suffix: Suffix appended to results<run_id> for output paths.
@@ -136,7 +139,13 @@ def train(
         gamma=1,
         # ent_coef is set in callback.py based on training progress
         tensorboard_log=str(output_dir / f"logs_{method}"),
-        policy_kwargs={"d_model": 256, "choose_on_teampreview": choose_on_teampreview, "progressive": progressive},
+        policy_kwargs={
+            "d_model": 256,
+            "choose_on_teampreview": choose_on_teampreview,
+            "progressive": progressive,
+            "optimizer_class": AdamW if l2 else Adam,
+            "optimizer_kwargs": {"eps": 1e-5, "weight_decay": 1e-6 if l2 else 0}
+        },
         device=device,
     )
     num_saved_timesteps = 0
@@ -239,6 +248,11 @@ if __name__ == "__main__":
         help="Use a progressive policy architecture for transfer learning",
     )
     parser.add_argument(
+        "--l2",
+        action="store_true",
+        help="Use L2 regularization with the AdamW optimizer",
+    )
+    parser.add_argument(
         "--reg",
         type=str,
         default=None,
@@ -324,6 +338,7 @@ if __name__ == "__main__":
         not args.no_mirror_match,
         not args.no_teampreview,
         args.progressive,
+        args.l2,
         args.team1 or None,
         args.team2 or None,
         args.results_suffix,
