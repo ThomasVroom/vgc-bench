@@ -424,39 +424,6 @@ def print_team_statistics(reg: str, num_teams: int):
         )
 
 
-def cross_eval_regs_baseline(
-    regs: list[str],
-    checkpoints: list[int],
-    method: str,
-    run_id: int,
-    port: int,
-    dev: str,
-    force_mirror: bool,
-    num_teams: int,
-    num_battles: int,
-    in_dist: bool,
-):
-    """
-    Cross-evaluate agents trained on different regulations.
-
-    Tests how much agents trained on a certain regulation can generalize to different regulations without further training.
-
-    Args:
-        regs: List of regulations.
-        checkpoints: List of checkpoints for each reg.
-        method: Name of the method used.
-        run_id: Seed of the teambuilder.
-        port: Port for the Pokemon Showdown server.
-        dev: CUDA device for model inference.
-        force_mirror: if True, force a mirror matchup for every battle.
-        num_teams: Size of the team pool (None for all possible teams).
-        num_battles: Number of battles per cell.
-        in_dist: If False, uses teams not seen by the agents during training.
-    """
-    paths = [f"results/saves_{method}/reg_{source_reg}/64_teams/seed{run_id}/{checkpoints[i]}.zip" for i, source_reg in enumerate(regs)]
-    cross_eval_regs(regs, paths, run_id, port, dev, force_mirror, num_teams, num_battles, in_dist)
-
-
 def cross_eval_regs(
     regs: list[str],
     checkpoints: list[str],
@@ -541,7 +508,7 @@ def cross_eval_regs(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a Pokémon AI model")
     parser.add_argument(
-        "--method", type=str, default="SP", help="Name of the method used"
+        "--method", type=str, default="sp", help="Name of the method used"
     )
     parser.add_argument(
         "--run_id", type=int, default=1, help="Seed of the teambuilder"
@@ -559,45 +526,38 @@ if __name__ == "__main__":
         "--num_teams", type=int, default=64, help="Size of the team pool (None for all possible teams)"
     )
     parser.add_argument(
-        "--num_battles", type=int, default=10, help="Number of battles per cell"
+        "--num_battles", type=int, default=1000, help="Number of battles per cell"
     )
     parser.add_argument(
         "--in_dist", action="store_true", help="Uses teams seen during training"
     )
+    parser.add_argument(
+        "--source_results_suffix", type=str, default="", help="suffix appended to results<run_id> for input paths",
+    )
     args = parser.parse_args()
 
-    checkpoints = {
-        'a':5013504, 'b':5013504, 'c':5013504, 'd':5013504, 'e':5013504,
-        'f':5013504, 'g':5013504, 'h':5013504, 'i':5013504, 'j':5013504
-    }
     print(
-        "Starting cross eval with args:", checkpoints, args.method, args.run_id, args.port, args.device,
-        args.force_mirror, args.num_teams, args.num_battles, args.in_dist
+        "Starting cross eval with args:", args.method, args.run_id, args.port, args.device,
+        args.force_mirror, args.num_teams, args.num_battles, args.in_dist, args.source_results_suffix
     )
-    cross_eval_regs_baseline(
-        [k for k in checkpoints.keys()],
-        [v for v in checkpoints.values()],
-        args.method.lower(),
-        args.run_id,
-        args.port,
-        args.device,
-        args.force_mirror,
-        args.num_teams,
-        args.num_battles,
-        args.in_dist
-    )
-    # cross_eval_regs(
-    #     ['a', 'b'],
-    #     [
-    #         "results/saves_sp/reg_a/64_teams/seed1/5013504.zip",
-    #         "results/saves_sp/reg_a_to_b/64_teams/seed1/10027008.zip",
-    #         "results/saves_sp/reg_b/64_teams/seed1/5013504.zip"
-    #     ],
-    #     args.run_id,
-    #     args.port,
-    #     args.device,
-    #     args.force_mirror,
-    #     args.num_teams,
-    #     args.num_battles,
-    #     args.in_dist
-    # )
+
+    regs = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
+
+    source_suffix = f"_{args.source_results_suffix}" if args.source_results_suffix else ""
+    suffix = "results" + source_suffix + "/saves_" + args.method
+
+    for i in range(1, 10): # skip reg a
+        cross_eval_regs(
+            [regs[i]],
+            [
+                suffix + f"/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip",
+                suffix + f"/{i+1}_columns/reg_{'_to_'.join(regs[:(i+1)])}/{args.num_teams}_teams/seed{args.run_id}/{(i+1)*51*98304}.zip"
+            ],
+            args.run_id,
+            args.port,
+            args.device,
+            args.force_mirror,
+            args.num_teams,
+            args.num_battles,
+            args.in_dist
+        )

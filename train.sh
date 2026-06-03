@@ -1,13 +1,13 @@
 #!/bin/bash
 
-run_ids=(3 3 3 3 3 3 3 3 3 3)
+run_ids=(1 1 1 1 1 1 1 1 1 1)
 team_counts=(64 64 64 64 64 64 64 64 64 64)
 ports=(7200 7200 7200 7200 7200 7200 7200 7200 7200 7200)
 devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
 regs=("A" "B" "C" "D" "E" "F" "G" "H" "I" "J")
 
 num_envs=16
-total_steps=$((51 * 98304))  # 98_304 is the number of steps per save during training
+total_steps=$((51 * 98304)) # 98_304 is the number of steps per save during training
 
 start_showdown() {
     local port=$1
@@ -38,8 +38,10 @@ train() {
         --port $port \
         --device $device \
         --self_play \
+        --progressive \
         --reg $reg \
         --total_steps "$total_steps" \
+        --results_suffix "" \
         > "debug$port.log" 2>&1
     exit_status=$?
     if [ $exit_status -ne 0 ]; then

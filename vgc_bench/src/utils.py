@@ -142,11 +142,12 @@ def load_policy(policy_class: type, file: str | Path, device: torch.device):
         file: Path to the saved PPO checkpoint.
         device: PyTorch device for model placement.
     """
+    assert Path(file).exists(), f"no file found at {file}"
     try:
         policy = PPO.load(file, device=device).policy
     except: # parameter groups don't match -> recreate policy from data
         data, params, _ = load_from_zip_file(file, device=device)
-        assert data and params, "no data found in file"
+        assert data and params, f"no data found in {file}"
 
         # identify correct architecture
         if "progressive" in data["policy_kwargs"]:

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-run_ids=(3 3 3 3 3 3 3 3 3)
+run_ids=(1 1 1 1 1 1 1 1 1)
 team_counts=(64 64 64 64 64 64 64 64 64)
 ports=(7200 7200 7200 7200 7200 7200 7200 7200 7200)
 devices=("cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0" "cuda:0")
@@ -40,6 +40,10 @@ train() {
         --port $port \
         --device $device \
         --self_play \
+        --new_heads \
+        --columns $(1 + $i) \
+        --source_results_suffix "" \
+        --target_results_suffix "" \
         --reg_source $reg_source \
         --reg_target $reg_target \
         --total_steps "$total_steps" \

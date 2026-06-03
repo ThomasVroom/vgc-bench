@@ -28,8 +28,8 @@ echo "Running evaluation..."
 python3.13 -u -m vgc_bench.eval \
     --port $PORT \
     --device $DEVICE \
-    --num_battles 1000 \
     --in_dist \
+    --source_results_suffix "" \
     > "$LOGFILE" 2>&1
 
 EXIT_STATUS=$?
