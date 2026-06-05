@@ -6,6 +6,7 @@ suitable for imitation learning. Extracts state-action pairs from recorded
 battles to create training data for behavior cloning.
 """
 
+import time
 import argparse
 import asyncio
 import json
@@ -407,8 +408,15 @@ def process_log(
         ).result()
         if results is not None:
             states, actions = results
+            print(f"{time.time()}: retrieved result")
             traj = Trajectory(obs=states, acts=actions, infos=None, terminal=True)
             return traj
+
+
+def _init_worker_loop():
+    global _READER_LOOP
+    _READER_LOOP = asyncio.new_event_loop()
+    Thread(target=_READER_LOOP.run_forever, daemon=True).start()
 
 
 def main(num_workers: int, min_rating: int | None, only_winner: bool, strict: bool):
@@ -424,12 +432,6 @@ def main(num_workers: int, min_rating: int | None, only_winner: bool, strict: bo
         only_winner: If True, only extract winner trajectories.
         strict: If True, crash on parsing errors; otherwise skip problematic logs.
     """
-
-    def _init_worker_loop():
-        global _READER_LOOP
-        _READER_LOOP = asyncio.new_event_loop()
-        Thread(target=_READER_LOOP.run_forever, daemon=True).start()
-
     executor = ProcessPoolExecutor(
         max_workers=num_workers, initializer=_init_worker_loop
     )

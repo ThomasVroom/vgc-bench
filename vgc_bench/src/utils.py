@@ -133,7 +133,7 @@ def get_reg_from_format(fmt: str) -> str:
     return m.group(1)
 
 
-def load_policy(policy_class: type, file: str | Path, device: torch.device):
+def load_policy(policy_class: type, file: str | Path, device: torch.device) -> BasePolicy:
     """
     Load a policy from a checkpoint file.
 
