@@ -168,7 +168,8 @@ def finetune(
     ]
     num_saved_timesteps = max(saved_policy_timesteps)
     load_policy_from_zip(ppo.policy, str(source_dir / f"{num_saved_timesteps}.zip"), ppo.device)
-    ppo.num_timesteps = num_saved_timesteps
+    if not policy_kwargs["progressive"]: # progressive adds fresh weights -> reset lr schedule
+        ppo.num_timesteps = num_saved_timesteps
     print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
     if policy_kwargs["progressive"]: # add column to progressive extractor
         ppo.policy.pi_features_extractor.add_column() # type: ignore

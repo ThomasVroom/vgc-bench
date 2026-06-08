@@ -26,7 +26,7 @@ train() {
     local device="${devices[$i]}"
     local reg_source="${regs_source[$i]}"
     local reg_target="${regs_target[$i]}"
-    local total_steps=$(((2 + $i) * 51 * 98304))
+    local total_steps=$((51 * 98304))
     local columns=$((1 + $i))
 
     echo "Starting Showdown server for fine-tune process $i..."

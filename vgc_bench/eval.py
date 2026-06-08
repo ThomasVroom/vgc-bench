@@ -472,6 +472,7 @@ def cross_eval_regs(
                 team=RandomTeamBuilder(run_id, num_teams, target_reg, take_from_end=(not in_dist))
             )
             agent.set_policy(path, device)
+            agent.policy.eval() # type: ignore
             agents += [agent]
         if force_mirror: # only mirror matchups
             mirror_selector = NonRepeatingTeamBuilder(run_id, num_teams, target_reg, take_from_end=(not in_dist))
@@ -551,7 +552,7 @@ if __name__ == "__main__":
             [regs[i]],
             [
                 suffix + f"/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip",
-                suffix + f"/{i+1}_columns/reg_{'_to_'.join(regs[:(i+1)])}/{args.num_teams}_teams/seed{args.run_id}/{(i+1)*51*98304}.zip"
+                suffix + f"/{i+1}_columns/reg_{'_to_'.join(regs[:(i+1)])}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
             ],
             args.run_id,
             args.port,
