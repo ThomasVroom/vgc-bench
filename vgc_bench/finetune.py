@@ -168,10 +168,9 @@ def finetune(
     ]
     num_saved_timesteps = max(saved_policy_timesteps)
     load_policy_from_zip(ppo.policy, str(source_dir / f"{num_saved_timesteps}.zip"), ppo.device)
-    if not policy_kwargs["progressive"]: # progressive adds fresh weights -> reset lr schedule
-        ppo.num_timesteps = num_saved_timesteps
     print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
     if policy_kwargs["progressive"]: # add column to progressive extractor
+        num_saved_timesteps = 0 # adds new weights -> reset lr schedule
         ppo.policy.pi_features_extractor.add_column() # type: ignore
         ppo.policy.vf_features_extractor.add_column() # type: ignore
         ppo.policy.to(device)
@@ -181,6 +180,7 @@ def finetune(
                 module.reset_parameters()
         ppo.policy.action_net.apply(reset_module)
         ppo.policy.value_net.apply(reset_module)
+    ppo.num_timesteps = num_saved_timesteps
     ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
         filter(lambda p: p.requires_grad, ppo.policy.parameters()),
         **{"lr": 1e-5, "eps": 1e-5, "weight_decay": 1e-6 if l2 else 0, "betas": (0.99, 0.99) if l2 else (0.9, 0.999)}
