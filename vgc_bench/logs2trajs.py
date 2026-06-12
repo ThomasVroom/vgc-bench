@@ -315,6 +315,7 @@ def process_logs(
     min_rating: int | None,
     only_winner: bool,
     strict: bool,
+    max_logs: int = 10_000,
 ) -> list[Trajectory]:
     """
     Process multiple battle logs in parallel to extract trajectories.
@@ -325,6 +326,7 @@ def process_logs(
         min_rating: Minimum player rating to include (None for no filter).
         only_winner: If True, only extract trajectories from the winner's perspective.
         strict: If True, raise exceptions on parsing errors; otherwise skip.
+        max_logs: Max number of logs to process (default: 10_000).
 
     Returns:
         List of Trajectory objects extracted from the logs.
@@ -343,7 +345,7 @@ def process_logs(
     ]
     num_empty = 0
     num_errors = 0
-    for chunk in chunked(task_params, 10_000):
+    for chunk in chunked(task_params, max_logs):
         tasks = [executor.submit(process_log, *params) for params in chunk]
         for task in as_completed(tasks):
             try:
@@ -361,6 +363,7 @@ def process_logs(
                     raise e
                 else:
                     num_errors += 1
+        break # max logs
     num_trans = sum([len(t.acts) for t in trajs])
     print(
         f"prepared {len(trajs)} trajectories with {num_trans} transitions "
@@ -409,7 +412,12 @@ def process_log(
         if results is not None:
             states, actions = results
             print(f"{time.time()}: retrieved result")
-            traj = Trajectory(obs=states, acts=actions, infos=None, terminal=True)
+            traj = Trajectory(
+                obs=states,
+                acts=actions,
+                infos=None if only_winner else np.array([winner == username for _ in range(len(actions))]),
+                terminal=True
+            )
             return traj
 
 
