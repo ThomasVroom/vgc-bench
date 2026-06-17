@@ -391,7 +391,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
                 )
-                self.pokemon_proj_alpha = nn.Parameter(torch.randn(1))
+                self.pokemon_proj_alpha = nn.Parameter(torch.full((d_model,), 1e-3))
 
             # CLS token -> column-specific
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
@@ -407,7 +407,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     norm_first=True,
                 ) for _ in range(self.embed_layers)
             ])
-            self.norm = nn.LayerNorm(d_model)
+            self.final_norm = nn.LayerNorm(d_model)
             if prev_column:
                 self.transformer_adapters = nn.ModuleList([
                     nn.Sequential(
@@ -417,7 +417,10 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
-                self.transformer_alphas = nn.Parameter(torch.randn(self.embed_layers))
+                for a in self.transformer_adapters:
+                    nn.init.zeros_(a[-1].weight) # type: ignore
+                    nn.init.zeros_(a[-1].bias)   # type: ignore
+                self.transformer_alphas = nn.Parameter(torch.full((self.embed_layers,d_model), 1e-3))
 
         def forward(self, obs_dict: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
             """
@@ -473,7 +476,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                 if old_outputs: # transfer one layer at a time
                     x += self.transformer_alphas[i] * self.transformer_adapters[i](old_outputs[i])
                 transformer_outputs.append(torch.clone(x))
-            x = self.norm(x)
+            x = self.final_norm(x)
 
             # return feature tensor and vector for transfer
             return x[:, 0, :], pokemon_tokens, transformer_outputs
