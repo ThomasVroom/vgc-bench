@@ -34,6 +34,7 @@ def finetune(
     behavior_clone: bool,
     allow_mirror_match: bool,
     choose_on_teampreview: bool,
+    add_column: bool,
     new_heads: bool,
     l2: bool,
     team1: str | None,
@@ -65,6 +66,7 @@ def finetune(
         behavior_clone: Whether to initialize from a BC-pretrained policy.
         allow_mirror_match: Whether to allow same-team matchups.
         choose_on_teampreview: Whether policy makes teampreview decisions.
+        add_column: Whether to expand the progressive architecture.
         new_heads: Whether to create new PPO heads or keep existing ones.
         l2: Whether to use L2 regularization with the AdamW optimizer.
         team1: Optional team string for matchup solving (requires team2).
@@ -135,8 +137,8 @@ def finetune(
         "progressive": columns > 0,
         "optimizer_class": AdamW if l2 else Adam
     }
-    if policy_kwargs["progressive"]:
-        method_dir = method_dir / f"{columns+1}_columns"
+    if columns > 0:
+        method_dir = method_dir / f"{columns + (1 if add_column else 0)}_columns"
         source_dir = source_dir / f"{columns}_columns"
         policy_kwargs["n_columns"] = columns # init with correct number of columns
     method_dir = method_dir / f"reg_{reg_source}_to_{reg_target}"
@@ -169,7 +171,7 @@ def finetune(
     num_saved_timesteps = max(saved_policy_timesteps)
     load_policy_from_zip(ppo.policy, str(source_dir / f"{num_saved_timesteps}.zip"), ppo.device)
     print(f"starting from {str(source_dir / f'{num_saved_timesteps}.zip')}")
-    if policy_kwargs["progressive"]: # add column to progressive extractor
+    if add_column:
         num_saved_timesteps = 0 # adds new weights -> reset lr schedule
         ppo.policy.pi_features_extractor.add_column() # type: ignore
         ppo.policy.vf_features_extractor.add_column() # type: ignore
@@ -266,6 +268,11 @@ if __name__ == "__main__":
         ),
     )
     parser.add_argument(
+        "--add_column",
+        action="store_true",
+        help="Add a column to the progressive architecture",
+    )
+    parser.add_argument(
         "--new_heads",
         action="store_true",
         help="Create new PPO action- and value-network heads",
@@ -309,7 +316,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_teams",
         type=int,
-        default=None,
+        default=64,
         help="number of teams to train with (default: all available teams)",
     )
     parser.add_argument(
@@ -361,6 +368,10 @@ if __name__ == "__main__":
         assert args.results_suffix != "", (
             "--results_suffix is required when using --team1 and --team2"
         )
+    if args.add_column:
+        assert args.columns > 0, (
+            "must use a progressive architecture to add a new column"
+        )
     finetune(
         reg_source,
         reg_target,
@@ -375,6 +386,7 @@ if __name__ == "__main__":
         args.behavior_clone,
         not args.no_mirror_match,
         not args.no_teampreview,
+        args.add_column,
         args.new_heads,
         args.l2,
         args.team1 or None,

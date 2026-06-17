@@ -41,6 +41,7 @@ train() {
         --port $port \
         --device $device \
         --self_play \
+        --add_column \
         --new_heads \
         --columns $columns \
         --source_results_suffix "" \

@@ -276,7 +276,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_teams",
         type=int,
-        default=None,
+        default=64,
         help="number of teams to train with (default: all available teams)",
     )
     parser.add_argument(

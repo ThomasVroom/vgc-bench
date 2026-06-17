@@ -43,13 +43,26 @@ if __name__ == "__main__":
     # Reg F
     convert_trajs("trajs/gen9vgc2024regf", [
         "results/saves_sp/reg_f/64_teams/seed1/5013504.zip",
+        "results/saves_bc-sp/reg_f/64_teams/seed1/5013504.zip",
         "results/saves_sp/reg_i/64_teams/seed1/5013504.zip",
+        "results/saves_bc-sp/reg_i/64_teams/seed1/5013504.zip",
         "results/saves_sp/reg_f_to_i/64_teams/seed1/10027008.zip"
     ])
 
     # Reg I
     convert_trajs("trajs/gen9vgc2025regi", [
         "results/saves_sp/reg_f/64_teams/seed1/5013504.zip",
+        "results/saves_bc-sp/reg_f/64_teams/seed1/5013504.zip",
         "results/saves_sp/reg_i/64_teams/seed1/5013504.zip",
+        "results/saves_bc-sp/reg_i/64_teams/seed1/5013504.zip",
         "results/saves_sp/reg_f_to_i/64_teams/seed1/10027008.zip"
     ])
+
+    # dev = torch.device("cpu")
+    # agent_a = load_policy(MaskedActorCriticPolicy, "results_temp/saves_sp/1_columns/reg_a/64_teams/seed1/98304.zip", dev)
+    # agent_b = load_policy(MaskedActorCriticPolicy, "results_temp/saves_sp/2_columns/reg_a_to_b/64_teams/seed1/98304.zip", dev)
+    # for (n_a, p_a), (n_b, p_b) in zip(
+    #     agent_a.features_extractor.column_head.named_parameters(),
+    #     agent_b.features_extractor.column_head.prev_column.named_parameters()
+    # ):
+    #     print(n_a, p_a.equal(p_b))
