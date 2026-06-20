@@ -392,7 +392,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
                 )
-                self.input_alpha_logits = nn.Parameter(torch.full((d_model,), -7)) # ~ 1e-3
+                self.input_alpha_logits = nn.Parameter(torch.full((d_model,), -7.0)) # ~ 1e-3
 
             # CLS token -> column-specific
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
@@ -418,7 +418,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
-                self.transformer_alpha_logits = nn.Parameter(torch.full((self.embed_layers,d_model), -7)) # ~ 1e-3
+                self.transformer_alpha_logits = nn.Parameter(torch.full((self.embed_layers,d_model), -7.0)) # ~ 1e-3
 
         def forward(self, obs_dict: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
             """
