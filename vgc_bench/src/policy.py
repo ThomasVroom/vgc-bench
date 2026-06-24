@@ -392,7 +392,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
                 )
-                self.input_alpha_logits = nn.Parameter(torch.full((d_model,), -7.0)) # ~ 1e-3
+                self.input_alpha = nn.Parameter(torch.full((d_model,), 0.01))
 
             # CLS token -> column-specific
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
@@ -418,7 +418,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
-                self.transformer_alpha_logits = nn.Parameter(torch.full((self.embed_layers,d_model), -7.0)) # ~ 1e-3
+                self.transformer_alpha = nn.Parameter(torch.full((self.embed_layers,d_model), 0.01))
 
         def forward(self, obs_dict: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
             """
@@ -461,7 +461,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                 with torch.no_grad():
                     _, old_tokens, old_outputs = self.prev_column(obs_dict)
                 # transfer linear layer
-                pokemon_tokens += torch.sigmoid(self.input_alpha_logits) * self.input_adapter(old_tokens)
+                pokemon_tokens += self.input_alpha * self.input_adapter(old_tokens)
 
             # add CLS token
             cls_token = self.cls_token.expand(batch_size, -1, -1)
@@ -472,7 +472,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             for i in range(self.embed_layers):
                 x = self.transformer_layers[i](x)
                 if old_outputs: # transfer one layer at a time
-                    x += torch.sigmoid(self.transformer_alpha_logits[i]) * self.transformer_adapters[i](old_outputs[i])
+                    x += self.transformer_alpha[i] * self.transformer_adapters[i](old_outputs[i])
                 transformer_outputs.append(torch.clone(x))
             x = self.final_norm(x)
 
