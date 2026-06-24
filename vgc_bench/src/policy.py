@@ -83,6 +83,11 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
             },
             share_features_extractor=False,
         )
+        if progressive: # smaller head inits to prevent large bias
+            torch.nn.init.orthogonal_(self.action_net.weight, gain=0.01) # type: ignore
+            torch.nn.init.constant_(self.action_net.bias, 0.0)           # type: ignore
+            torch.nn.init.orthogonal_(self.value_net.weight, gain=0.01)
+            torch.nn.init.constant_(self.value_net.bias, 0.0)
 
     def forward(self, obs: PyTorchObs, deterministic=False):
         assert isinstance(obs, dict)

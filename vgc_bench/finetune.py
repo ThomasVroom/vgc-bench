@@ -9,7 +9,7 @@ cloning.
 
 import argparse
 from pathlib import Path
-from torch.optim import Adam, AdamW
+from torch import nn, optim
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
@@ -135,7 +135,7 @@ def finetune(
         "d_model": 256,
         "choose_on_teampreview": choose_on_teampreview,
         "progressive": columns > 0,
-        "optimizer_class": AdamW if l2 else Adam
+        "optimizer_class": optim.AdamW if l2 else optim.Adam
     }
     if columns > 0:
         method_dir = method_dir / f"{columns + (1 if add_column else 0)}_columns"
@@ -177,11 +177,10 @@ def finetune(
         ppo.policy.vf_features_extractor.add_column() # type: ignore
         ppo.policy.to(device)
     if new_heads: # reset action_net and value_net
-        def reset_module(module):
-            if hasattr(module, "reset_parameters"):
-                module.reset_parameters()
-        ppo.policy.action_net.apply(reset_module)
-        ppo.policy.value_net.apply(reset_module)
+        nn.init.orthogonal_(ppo.policy.action_net.weight, gain=0.01) # type: ignore
+        nn.init.constant_(ppo.policy.action_net.bias, 0.0)           # type: ignore
+        nn.init.orthogonal_(ppo.policy.value_net.weight, gain=0.01)
+        nn.init.constant_(ppo.policy.value_net.bias, 0.0)
     ppo.num_timesteps = num_saved_timesteps
     ppo.policy.optimizer = ppo.policy.optimizer_class( # reset optimizer, skip frozen modules
         filter(lambda p: p.requires_grad, ppo.policy.parameters()),
