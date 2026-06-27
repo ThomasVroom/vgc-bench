@@ -392,7 +392,6 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             self.pokemon_proj = nn.Linear(chunk_obs_len + 6 * (self.embed_len - 1), d_model)
             if prev_column:
                 self.input_adapter = nn.Sequential(
-                    nn.LayerNorm(d_model),
                     nn.Linear(d_model, self.down_size),
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
@@ -413,11 +412,9 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     norm_first=True,
                 ) for _ in range(self.embed_layers)
             ])
-            self.final_norm = nn.LayerNorm(d_model)
             if prev_column:
                 self.transformer_adapters = nn.ModuleList([
                     nn.Sequential(
-                        nn.LayerNorm(d_model),
                         nn.Linear(d_model, self.down_size),
                         nn.ReLU(),
                         nn.Linear(self.down_size, d_model),
@@ -479,7 +476,6 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                 if old_outputs: # transfer one layer at a time
                     x += self.transformer_alpha[i] * self.transformer_adapters[i](old_outputs[i])
                 transformer_outputs.append(torch.clone(x))
-            x = self.final_norm(x)
 
             # return feature tensor and vector for transfer
             return x[:, 0, :], pokemon_tokens, transformer_outputs
