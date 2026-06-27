@@ -412,6 +412,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     norm_first=True,
                 ) for _ in range(self.embed_layers)
             ])
+            self.final_norm = nn.LayerNorm(d_model) # not used, but kept for backwards compatibility
             if prev_column:
                 self.transformer_adapters = nn.ModuleList([
                     nn.Sequential(

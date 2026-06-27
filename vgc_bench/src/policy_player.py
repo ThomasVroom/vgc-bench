@@ -542,6 +542,7 @@ class BatchPolicyPlayer(PolicyPlayer):
         if self._worker_task is None:
             self._worker_task = asyncio.create_task(self._inference_loop())
         req = _BatchReq(obs=obs, mask=mask, event=asyncio.Event())
+        #print("turn", battle.turn)
         await self._q.put(req)
         await req.event.wait()
         assert req.result is not None
@@ -594,10 +595,11 @@ class BatchPolicyPlayer(PolicyPlayer):
                     "observation": torch.as_tensor(obs, device=self.policy.device),
                     "action_mask": torch.as_tensor(masks, device=self.policy.device),
                 }
-                actions, _, _ = self.policy.forward(
+                actions, values, _ = self.policy.forward(
                     obs_dict, deterministic=self.deterministic
                 )
             actions = actions.cpu().numpy()
+            #print("values", values)
 
             # dispatch
             for req, act in zip(requests, actions):
