@@ -90,6 +90,7 @@ class PolicyPlayer(Player):
         self._accept_all_formats = accept_all_formats
         self.deterministic = deterministic
         self.invitee = invitee
+        self.debug = False
 
     async def _handle_challenge_request(self, split_message: list[str]):
         """Accept challenge requests, optionally for any recognized format."""
@@ -542,7 +543,8 @@ class BatchPolicyPlayer(PolicyPlayer):
         if self._worker_task is None:
             self._worker_task = asyncio.create_task(self._inference_loop())
         req = _BatchReq(obs=obs, mask=mask, event=asyncio.Event())
-        #print("turn", battle.turn)
+        if self.debug:
+            print("turn", battle.turn)
         await self._q.put(req)
         await req.event.wait()
         assert req.result is not None
@@ -599,7 +601,8 @@ class BatchPolicyPlayer(PolicyPlayer):
                     obs_dict, deterministic=self.deterministic
                 )
             actions = actions.cpu().numpy()
-            #print("values", values)
+            if self.debug:
+                print("values", values)
 
             # dispatch
             for req, act in zip(requests, actions):

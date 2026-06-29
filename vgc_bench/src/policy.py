@@ -392,6 +392,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             self.pokemon_proj = nn.Linear(chunk_obs_len + 6 * (self.embed_len - 1), d_model)
             if prev_column:
                 self.input_adapter = nn.Sequential(
+                    nn.LayerNorm(d_model),
                     nn.Linear(d_model, self.down_size),
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
@@ -412,16 +413,18 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     norm_first=True,
                 ) for _ in range(self.embed_layers)
             ])
-            self.final_norm = nn.LayerNorm(d_model) # not used, but kept for backwards compatibility
             if prev_column:
                 self.transformer_adapters = nn.ModuleList([
                     nn.Sequential(
+                        nn.LayerNorm(d_model),
                         nn.Linear(d_model, self.down_size),
                         nn.ReLU(),
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
                 self.transformer_alpha = nn.Parameter(torch.full((self.embed_layers,d_model), 0.01))
+            else:
+                self.final_norm = nn.LayerNorm(d_model) # not used, kept for backwards compatibility
 
         def forward(self, obs_dict: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor, list[torch.Tensor]]:
             """
