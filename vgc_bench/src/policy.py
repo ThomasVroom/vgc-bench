@@ -396,7 +396,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
                 )
-                self.input_alpha = 0.05
+                self.input_alpha = nn.Parameter(torch.full((d_model,), 0.05))
 
             # CLS token -> column-specific
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
@@ -420,7 +420,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
-                self.transformer_alpha = [0.05 for _ in range(self.embed_layers)]
+                self.transformer_alpha = [0 for _ in range(self.embed_layers)]
             else:
                 self.final_norm = nn.LayerNorm(d_model) # not used, kept for backwards compatibility
 
