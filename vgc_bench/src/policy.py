@@ -392,12 +392,11 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             self.pokemon_proj = nn.Linear(chunk_obs_len + 6 * (self.embed_len - 1), d_model)
             if prev_column:
                 self.input_adapter = nn.Sequential(
-                    nn.LayerNorm(d_model),
                     nn.Linear(d_model, self.down_size),
                     nn.ReLU(),
                     nn.Linear(self.down_size, d_model),
                 )
-                self.input_alpha = nn.Parameter(torch.full((d_model,), 0.01))
+                self.input_alpha = 0.05
 
             # CLS token -> column-specific
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
@@ -416,13 +415,12 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
             if prev_column:
                 self.transformer_adapters = nn.ModuleList([
                     nn.Sequential(
-                        nn.LayerNorm(d_model),
                         nn.Linear(d_model, self.down_size),
                         nn.ReLU(),
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
-                self.transformer_alpha = nn.Parameter(torch.full((self.embed_layers,d_model), 0.01))
+                self.transformer_alpha = [0.05 for _ in range(self.embed_layers)]
             else:
                 self.final_norm = nn.LayerNorm(d_model) # not used, kept for backwards compatibility
 
