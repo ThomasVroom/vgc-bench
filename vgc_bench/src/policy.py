@@ -420,7 +420,7 @@ class ProgressiveAttentionExtractor(BaseFeaturesExtractor):
                         nn.Linear(self.down_size, d_model),
                     ) for _ in range(self.embed_layers)
                 ])
-                self.transformer_alpha = [0 for _ in range(self.embed_layers)]
+                self.transformer_alpha = nn.Parameter(torch.full((self.embed_layers,d_model), 0.05))
             else:
                 self.final_norm = nn.LayerNorm(d_model) # not used, kept for backwards compatibility
 

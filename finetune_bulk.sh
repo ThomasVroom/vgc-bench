@@ -26,7 +26,7 @@ train() {
     local device="${devices[$i]}"
     local reg_source="${regs_source[$i]}"
     local reg_target="${regs_target[$i]}"
-    local total_steps=$((51 * 98304))
+    local total_steps=$((($i + 2) * 51 * 98304))
     local columns=$((1 + $i))
 
     echo "Starting Showdown server for fine-tune process $i..."
@@ -41,11 +41,10 @@ train() {
         --port $port \
         --device $device \
         --self_play \
-        --add_column \
-        --new_heads \
+        --l2 \
         --columns $columns \
-        --source_results_suffix "" \
-        --target_results_suffix "" \
+        --source_results_suffix "l2" \
+        --target_results_suffix "l2" \
         --reg_source $reg_source \
         --reg_target $reg_target \
         --total_steps "$total_steps" \

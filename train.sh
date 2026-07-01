@@ -39,9 +39,10 @@ train() {
         --device $device \
         --self_play \
         --progressive \
+        --l2 \
         --reg $reg \
         --total_steps "$total_steps" \
-        --results_suffix "" \
+        --results_suffix "l2" \
         > "debug$port.log" 2>&1
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
