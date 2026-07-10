@@ -454,9 +454,11 @@ def cross_eval_regs(
     device = torch.device(dev)
     for target_reg in regs:
         agents = []
+        debug = False
         for path in checkpoints:
             path_split = path.split('/')
             agent = BatchPolicyPlayer(
+                debug=debug,
                 account_configuration=AccountConfiguration.generate(
                     path_split[2 if path_split[2].startswith("reg") else 3][:5]+'_'+path_split[-1][:-4] # e.g. reg_a_5013504
                 ),
@@ -471,6 +473,8 @@ def cross_eval_regs(
                 open_timeout=None,
                 team=RandomTeamBuilder(run_id, num_teams, target_reg, take_from_end=(not in_dist))
             )
+            if debug:
+                debug = False
             agent.set_policy(path, device)
             agent.policy.eval() # type: ignore
             agents += [agent]
@@ -547,13 +551,20 @@ if __name__ == "__main__":
     source_suffix = f"_{args.source_results_suffix}" if args.source_results_suffix else ""
     suffix = "results" + source_suffix + "/saves_" + args.method
 
-    for i in range(1, 10): # skip reg a
+    for i in range(len(regs)):
+        if regs[i] == "a": # skip reg a
+            continue
+        if not args.in_dist and regs[i] in ["b", "e", "j"]: # not enough data
+            continue
+
+        reg_str = "reg_" + '_to_'.join(regs[:(i+1)])
+        prog = f"results_nonorm/saves_sp/{i+1}_columns/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
+        l2 = f"results_l2/saves_sp/1_columns/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/{5013504*(i+1)}.zip"
+        l2_prog = f"results_l2/saves_sp/{i+1}_columns/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
+
         cross_eval_regs(
             [regs[i]],
-            [
-                suffix + f"/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip",
-                suffix + f"/{i+1}_columns/reg_{'_to_'.join(regs[:(i+1)])}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
-            ],
+            [prog, l2, l2_prog],
             args.run_id,
             args.port,
             args.device,

@@ -99,6 +99,7 @@ class MaskedActorCriticPolicy(ActorCriticPolicy):
         )
         actions2 = distribution2.get_actions(deterministic=deterministic)
         distribution.distribution[1] = distribution2.distribution[1]
+        self.temp_distribution = distribution # access point for trajs2enc
         actions[:, 1] = actions2[:, 1]
         if self.debug:
             print("value:", value_logits[0][0].item())

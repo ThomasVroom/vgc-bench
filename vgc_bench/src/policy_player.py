@@ -523,11 +523,14 @@ class BatchPolicyPlayer(PolicyPlayer):
     battles.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any):
+    def __init__(self, debug=False, *args: Any, **kwargs: Any):
         """Initialize the batch policy player with an inference queue."""
         super().__init__(*args, **kwargs)
         self._q: asyncio.Queue[_BatchReq] = asyncio.Queue()
         self._worker_task: asyncio.Task | None = None
+        self.debug = debug
+        if debug:
+            self.data = []
 
     def choose_move(self, battle: AbstractBattle) -> Awaitable[BattleOrder]:
         """Return an awaitable that resolves to the chosen battle order."""
@@ -544,12 +547,21 @@ class BatchPolicyPlayer(PolicyPlayer):
             self._worker_task = asyncio.create_task(self._inference_loop())
         req = _BatchReq(obs=obs, mask=mask, event=asyncio.Event())
         if self.debug:
-            print("turn", battle.turn)
+            print("depth", battle.turn)
+            self.data.append(dict(depth=battle.turn, obs=obs, mask=mask))
         await self._q.put(req)
         await req.event.wait()
         assert req.result is not None
         action = req.result
         return DoublesEnv.action_to_order(action, battle)
+
+    def save_results(self):
+        if not self.debug:
+            return
+        import pandas as pd
+        df = pd.DataFrame(self.data)
+        print("saving encodings...")
+        df.to_pickle("trajs/regg_trajs_indist.pkl")
 
     def teampreview(self, battle: AbstractBattle) -> Awaitable[str]:
         """Return an awaitable that resolves to the team order string."""
@@ -597,12 +609,13 @@ class BatchPolicyPlayer(PolicyPlayer):
                     "observation": torch.as_tensor(obs, device=self.policy.device),
                     "action_mask": torch.as_tensor(masks, device=self.policy.device),
                 }
-                actions, values, _ = self.policy.forward(
+                actions, values, probs = self.policy.forward(
                     obs_dict, deterministic=self.deterministic
                 )
             actions = actions.cpu().numpy()
             if self.debug:
                 print("values", values)
+                print("probs", probs)
 
             # dispatch
             for req, act in zip(requests, actions):
