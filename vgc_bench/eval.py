@@ -558,13 +558,55 @@ if __name__ == "__main__":
             continue
 
         reg_str = "reg_" + '_to_'.join(regs[:(i+1)])
+        orig = f"results/saves_sp/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/{5013504*(i+1)}.zip"
         prog = f"results_nonorm/saves_sp/{i+1}_columns/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
         l2 = f"results_l2/saves_sp/1_columns/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/{5013504*(i+1)}.zip"
         l2_prog = f"results_l2/saves_sp/{i+1}_columns/{reg_str}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
 
+        orig_retrained = f"results/saves_sp/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
+        prog_retrained = f"results_nonorm/saves_sp/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
+        l2_retrained = f"results_l2/saves_sp/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
+
+        # vs. original retrained
         cross_eval_regs(
             [regs[i]],
-            [prog, l2, l2_prog],
+            [l2_prog, orig_retrained],
+            args.run_id,
+            args.port,
+            args.device,
+            args.force_mirror,
+            args.num_teams,
+            args.num_battles,
+            args.in_dist
+        )
+        # vs. original fine-tuned
+        cross_eval_regs(
+            [regs[i]],
+            [l2_prog, orig],
+            args.run_id,
+            args.port,
+            args.device,
+            args.force_mirror,
+            args.num_teams,
+            args.num_battles,
+            args.in_dist
+        )
+        # vs. progressive retrained
+        cross_eval_regs(
+            [regs[i]],
+            [l2_prog, prog_retrained],
+            args.run_id,
+            args.port,
+            args.device,
+            args.force_mirror,
+            args.num_teams,
+            args.num_battles,
+            args.in_dist
+        )
+        # vs. L2 retrained
+        cross_eval_regs(
+            [regs[i]],
+            [l2_prog, l2_retrained],
             args.run_id,
             args.port,
             args.device,
