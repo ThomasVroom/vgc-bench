@@ -552,8 +552,8 @@ if __name__ == "__main__":
     suffix = "results" + source_suffix + "/saves_" + args.method
 
     for i in range(len(regs)):
-        if regs[i] == "a": # skip reg a
-            continue
+        # if regs[i] == "a": # skip reg a
+        #     continue
         if not args.in_dist and regs[i] in ["b", "e", "j"]: # not enough data
             continue
 
@@ -567,46 +567,9 @@ if __name__ == "__main__":
         prog_retrained = f"results_nonorm/saves_sp/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
         l2_retrained = f"results_l2/saves_sp/1_columns/reg_{regs[i]}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip"
 
-        # vs. original retrained
         cross_eval_regs(
             [regs[i]],
-            [l2_prog, orig_retrained],
-            args.run_id,
-            args.port,
-            args.device,
-            args.force_mirror,
-            args.num_teams,
-            args.num_battles,
-            args.in_dist
-        )
-        # vs. original fine-tuned
-        cross_eval_regs(
-            [regs[i]],
-            [l2_prog, orig],
-            args.run_id,
-            args.port,
-            args.device,
-            args.force_mirror,
-            args.num_teams,
-            args.num_battles,
-            args.in_dist
-        )
-        # vs. progressive retrained
-        cross_eval_regs(
-            [regs[i]],
-            [l2_prog, prog_retrained],
-            args.run_id,
-            args.port,
-            args.device,
-            args.force_mirror,
-            args.num_teams,
-            args.num_battles,
-            args.in_dist
-        )
-        # vs. L2 retrained
-        cross_eval_regs(
-            [regs[i]],
-            [l2_prog, l2_retrained],
+            [f"{suffix}/reg_{r}/{args.num_teams}_teams/seed{args.run_id}/5013504.zip" for r in regs],
             args.run_id,
             args.port,
             args.device,
