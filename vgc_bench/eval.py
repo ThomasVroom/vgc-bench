@@ -507,6 +507,8 @@ def cross_eval_regs(
             )
         print(f"Cross evaluation results on reg_{target_reg}: ({time.localtime().tm_hour}:{time.localtime().tm_min})")
         print(avg_payoff_matrix.round(decimals=3)) # results are relative to row player!
+        for agent in agents:
+            agent.save_results("trajs/regg_trajs_indist.pkl")
 
 # -----------------------------------------------------------------
 
@@ -550,6 +552,20 @@ if __name__ == "__main__":
 
     source_suffix = f"_{args.source_results_suffix}" if args.source_results_suffix else ""
     suffix = "results" + source_suffix + "/saves_" + args.method
+
+    # # for collecting trajectories
+    # cross_eval_regs(
+    #     ["g"],
+    #     ["results_nonorm/saves_sp/1_columns/reg_g/64_teams/seed1/5013504.zip" for _ in range(2)],
+    #     args.run_id,
+    #     args.port,
+    #     args.device,
+    #     args.force_mirror,
+    #     args.num_teams,
+    #     args.num_battles,
+    #     args.in_dist
+    # )
+    # exit()
 
     for i in range(len(regs)):
         # if regs[i] == "a": # skip reg a

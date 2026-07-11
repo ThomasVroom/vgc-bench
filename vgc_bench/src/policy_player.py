@@ -555,13 +555,13 @@ class BatchPolicyPlayer(PolicyPlayer):
         action = req.result
         return DoublesEnv.action_to_order(action, battle)
 
-    def save_results(self):
+    def save_results(self, name: str):
         if not self.debug:
             return
         import pandas as pd
         df = pd.DataFrame(self.data)
         print("saving encodings...")
-        df.to_pickle("trajs/regg_trajs_indist.pkl")
+        df.to_pickle(name)
 
     def teampreview(self, battle: AbstractBattle) -> Awaitable[str]:
         """Return an awaitable that resolves to the team order string."""

@@ -7,7 +7,6 @@ from tqdm import tqdm
 from vgc_bench.src.utils import load_policy
 from vgc_bench.src.policy import MaskedActorCriticPolicy
 
-
 def convert_trajs(trajs_file: str, policies: list[str], device: torch.device = torch.device("cuda:0")):
     agents = [load_policy(MaskedActorCriticPolicy, p, device).eval() for p in policies]
     data = []
@@ -36,32 +35,39 @@ def convert_trajs(trajs_file: str, policies: list[str], device: torch.device = t
 
     df = pd.DataFrame(data)
     print("saving encodings...")
-    df.to_pickle(f"{trajs_file[:-4]}_enc.pkl")
-
+    df.to_pickle(f"{trajs_file[:-4]}_enc1.pkl")
 
 if __name__ == "__main__":
     # Reg F
     convert_trajs("trajs/regf_trajs_indist.pkl", [
-        "results/saves_sp/reg_f/64_teams/seed2/5013504.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e/64_teams/seed2/25067520.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed2/30081024.zip"
+        "results_nonorm/saves_sp/1_columns/reg_f/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/5_columns/reg_a_to_b_to_c_to_d_to_e/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/6_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/5013504.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e/64_teams/seed1/25067520.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/30081024.zip"
     ])
     convert_trajs("trajs/regf_trajs_outofdist.pkl", [
-        "results/saves_sp/reg_f/64_teams/seed2/5013504.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e/64_teams/seed2/25067520.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed2/30081024.zip"
+        "results_nonorm/saves_sp/1_columns/reg_f/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/5_columns/reg_a_to_b_to_c_to_d_to_e/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/6_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/5013504.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e/64_teams/seed1/25067520.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/30081024.zip"
     ])
 
     # Reg G
     convert_trajs("trajs/regg_trajs_indist.pkl", [
-        "results/saves_sp/reg_g/64_teams/seed2/5013504.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed2/30081024.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e_to_f_to_g/64_teams/seed2/35094528.zip"
+        "results_nonorm/saves_sp/1_columns/reg_g/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/6_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/7_columns/reg_a_to_b_to_c_to_d_to_e_to_f_to_g/64_teams/seed1/5013504.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/30081024.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e_to_f_to_g/64_teams/seed1/35094528.zip"
     ])
     convert_trajs("trajs/regg_trajs_outofdist.pkl", [
-        "results/saves_sp/reg_g/64_teams/seed2/5013504.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed2/30081024.zip",
-        "results/saves_sp/reg_a_to_b_to_c_to_d_to_e_to_f_to_g/64_teams/seed2/35094528.zip"
+        "results_nonorm/saves_sp/1_columns/reg_g/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/6_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/5013504.zip",
+        "results_nonorm/saves_sp/7_columns/reg_a_to_b_to_c_to_d_to_e_to_f_to_g/64_teams/seed1/5013504.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e_to_f/64_teams/seed1/30081024.zip",
+        "results_l2/saves_sp/1_columns/reg_a_to_b_to_c_to_d_to_e_to_f_to_g/64_teams/seed1/35094528.zip"
     ])
 
     # # test column freezing
