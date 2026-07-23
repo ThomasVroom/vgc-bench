@@ -13,6 +13,16 @@ This benchmark includes:
 - a basic Large Language Model (LLM) player that any LLM can easily be plugged into
 - 3 heuristic players from [poke-env](https://github.com/hsahovic/poke-env)
 
+# Changes
+The following is unique to this repository:
+- `vgc_bench/eval.py`: Adjusted for cross-evaluating over multiple regulations.
+- `vgc_bench/train.py`: Adjusted to support a progressive architecture and tuned PPO (L2).
+- `vgc_bench/finetune.py`: A script for fine-tuning previously trained agents.
+- `vgc_bench/trajs2enc.py`: A script for extracting agent statistics from trajectories.
+- `vgc_bench/src/policy.py`: Introduced a policy variant with a progressive architecture.
+- `experiments/`: A collection of continual learning experiments.
+- Various improvements like better file loading, debug statistics, documentation, and refactoring.
+
 # 🛠️ Setup
 Prerequisites:
 1. Python (I use v3.13)
